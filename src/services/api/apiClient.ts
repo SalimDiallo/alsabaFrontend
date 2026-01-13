@@ -46,18 +46,54 @@ class ApiClient {
     }
 
     private handleError(error: AxiosError): ApiError {
+        // Log en dev pour debug
+        if (__DEV__) {
+            console.log('🔴 API Error:', {
+                url: error.config?.url,
+                method: error.config?.method,
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message,
+            });
+        }
+
         if (error.response) {
             // Erreur de réponse du serveur
-            const message = (error.response.data as any)?.message || 'Une erreur est survenue';
+            const data = error.response.data as any;
+            
+            // Django peut retourner: error, detail, message, ou des erreurs de champs
+            let message = 'Une erreur est survenue';
+            
+            if (data?.error) {
+                message = data.error;
+            } else if (data?.detail) {
+                message = data.detail;
+            } else if (data?.message) {
+                message = data.message;
+            } else if (data?.phone_number) {
+                // Erreur de validation Django sur un champ
+                message = Array.isArray(data.phone_number) 
+                    ? data.phone_number[0] 
+                    : data.phone_number;
+            } else if (data?.country_code) {
+                message = Array.isArray(data.country_code) 
+                    ? data.country_code[0] 
+                    : data.country_code;
+            } else if (data?.non_field_errors) {
+                message = Array.isArray(data.non_field_errors) 
+                    ? data.non_field_errors[0] 
+                    : data.non_field_errors;
+            }
+
             return {
                 message,
-                code: (error.response.data as any)?.code,
+                code: data?.code || String(error.response.status),
                 status: error.response.status,
             };
         } else if (error.request) {
-            // Pas de réponse reçue
+            // Pas de réponse reçue - problème réseau
             return {
-                message: 'Impossible de contacter le serveur',
+                message: 'Impossible de contacter le serveur. Vérifiez votre connexion.',
                 code: 'NETWORK_ERROR',
             };
         } else {

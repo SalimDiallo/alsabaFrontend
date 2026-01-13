@@ -41,17 +41,18 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     setIsLoading(true);
     try {
       // Appel API pour l'inscription
-      await authService.register({
-        phoneNumber,
-        countryCode,
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
+      const response = await authService.register({
+        phone_number: phoneNumber,
+        country_code: countryCode,
       });
 
-      // Navigation vers l'écran OTP
+      // Navigation vers l'écran OTP avec les données du backend
       navigation.navigate('OTPVerification', {
         phoneNumber,
         countryCode,
+        fullPhoneNumber: response.phone_number,
+        sessionKey: response.session_key,
+        expiresIn: response.expires_in,
       });
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Une erreur est survenue');

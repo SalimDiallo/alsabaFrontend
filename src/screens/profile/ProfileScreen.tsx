@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
@@ -6,40 +6,49 @@ import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
 import { Divider } from '@/components/common/Divider';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-import { mockUser } from '@/utils/mockData';
+import { useAuthStore } from '@/store/useAuthStore';
 import { formatPhoneNumber } from '@/utils/formatters';
 
 const ProfileScreen = () => {
+  const { user, logout } = useAuthStore();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Données utilisateur depuis le store
+  const firstName = user?.first_name || '';
+  const lastName = user?.last_name || '';
+  const phoneNumber = user?.phone_number || '';
+  const countryCode = user?.country_code || '+212';
+
   const menuItems = [
     {
       icon: 'person-outline',
       label: 'Informations personnelles',
-      onPress: () => console.log('Infos personnelles'),
+      onPress: () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt'),
     },
     {
       icon: 'card-outline',
       label: 'Moyens de paiement',
-      onPress: () => console.log('Moyens paiement'),
+      onPress: () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt'),
     },
     {
       icon: 'shield-checkmark-outline',
       label: 'Sécurité',
-      onPress: () => console.log('Sécurité'),
+      onPress: () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt'),
     },
     {
       icon: 'notifications-outline',
       label: 'Notifications',
-      onPress: () => console.log('Notifications'),
+      onPress: () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt'),
     },
     {
       icon: 'help-circle-outline',
       label: 'Aide et support',
-      onPress: () => console.log('Aide'),
+      onPress: () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt'),
     },
     {
       icon: 'document-text-outline',
       label: 'Conditions d\'utilisation',
-      onPress: () => console.log('CGU'),
+      onPress: () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt'),
     },
   ];
 
@@ -52,7 +61,16 @@ const ProfileScreen = () => {
         {
           text: 'Déconnexion',
           style: 'destructive',
-          onPress: () => console.log('Déconnexion'),
+          onPress: async () => {
+            setIsLoggingOut(true);
+            try {
+              await logout();
+            } catch (error) {
+              console.log('Logout error:', error);
+            } finally {
+              setIsLoggingOut(false);
+            }
+          },
         },
       ]
     );
@@ -67,21 +85,34 @@ const ProfileScreen = () => {
         <Card style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
-              {mockUser.firstName?.[0] ?? ''}{mockUser.lastName?.[0] ?? ''}
+              {firstName?.[0] ?? ''}{lastName?.[0] ?? ''}
             </Text>
           </View>
           <Text style={styles.name}>
-            {mockUser.firstName ?? ''} {mockUser.lastName ?? ''}
+            {firstName || 'Utilisateur'} {lastName ?? ''}
           </Text>
           <Text style={styles.phone}>
-            {formatPhoneNumber(mockUser.phoneNumber, mockUser.countryCode)}
+            {phoneNumber ? formatPhoneNumber(phoneNumber, countryCode) : 'Non renseigné'}
           </Text>
-          {mockUser.verified && (
-            <View style={styles.verifiedBadge}>
-              <Icon name="checkmark-circle" size={16} color={COLORS.success} />
-              <Text style={styles.verifiedText}>Compte vérifié</Text>
-            </View>
-          )}
+          
+          {/* Badges */}
+          <View style={styles.badgesContainer}>
+            {/* Badge Numéro vérifié (OTP) */}
+            {user?.phone_verified && (
+              <View style={styles.phoneBadge}>
+                <Icon name="call-outline" size={14} color={COLORS.primary} />
+                <Text style={styles.phoneBadgeText}>Numéro vérifié</Text>
+              </View>
+            )}
+            
+            {/* Badge Compte vérifié (KYC) */}
+            {user?.kyc_status === 'approved' && (
+              <View style={styles.verifiedBadge}>
+                <Icon name="checkmark-circle" size={16} color={COLORS.success} />
+                <Text style={styles.verifiedText}>Compte vérifié</Text>
+              </View>
+            )}
+          </View>
         </Card>
 
         {/* Menu */}
@@ -107,9 +138,12 @@ const ProfileScreen = () => {
           style={styles.logoutButton}
           onPress={handleLogout}
           activeOpacity={0.7}
+          disabled={isLoggingOut}
         >
           <Icon name="log-out-outline" size={24} color={COLORS.error} />
-          <Text style={styles.logoutText}>Déconnexion</Text>
+          <Text style={styles.logoutText}>
+            {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
+          </Text>
         </TouchableOpacity>
 
         {/* Version */}
@@ -153,6 +187,26 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.sizes.md,
     color: COLORS.text.secondary,
     marginBottom: SPACING.sm,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+  },
+  phoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  phoneBadgeText: {
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    marginLeft: SPACING.xs,
   },
   verifiedBadge: {
     flexDirection: 'row',

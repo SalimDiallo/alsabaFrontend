@@ -23,7 +23,7 @@ const DashboardScreen = () => {
           <View>
             <Text style={styles.greeting}>Bonjour,</Text>
             <Text style={styles.userName}>
-              {mockUser.firstName} {mockUser.lastName}
+              {mockUser.first_name} {mockUser.last_name}
             </Text>
           </View>
           <TouchableOpacity style={styles.notificationButton}>

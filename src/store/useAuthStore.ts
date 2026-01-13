@@ -8,27 +8,39 @@ import {
     getUser,
     clearStorage
 } from '@/services/storage/asyncStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const REFRESH_TOKEN_KEY = '@alsax_refresh_token';
 
 interface AuthStore extends AuthState {
     // Actions
-    setAuth: (user: User, token: string) => Promise<void>;
+    setAuth: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
     logout: () => Promise<void>;
     updateUser: (user: Partial<User>) => Promise<void>;
     initializeAuth: () => Promise<void>;
     setLoading: (isLoading: boolean) => void;
+    updateTokens: (accessToken: string, refreshToken?: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
     user: null,
     token: null,
+    refreshToken: null,
     isAuthenticated: false,
     isLoading: true,
 
-    setAuth: async (user, token) => {
+    setAuth: async (user, accessToken, refreshToken) => {
         try {
-            await saveToken(token);
+            await saveToken(accessToken);
+            await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
             await saveUser(user);
-            set({ user, token, isAuthenticated: true, isLoading: false });
+            set({ 
+                user, 
+                token: accessToken, 
+                refreshToken,
+                isAuthenticated: true, 
+                isLoading: false 
+            });
         } catch (error) {
             console.error('Error setting auth:', error);
             throw error;
@@ -38,7 +50,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     logout: async () => {
         try {
             await clearStorage();
-            set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+            await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+            set({ 
+                user: null, 
+                token: null, 
+                refreshToken: null,
+                isAuthenticated: false, 
+                isLoading: false 
+            });
         } catch (error) {
             console.error('Error logging out:', error);
             throw error;
@@ -59,20 +78,54 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         }
     },
 
+    updateTokens: async (accessToken, refreshToken) => {
+        try {
+            await saveToken(accessToken);
+            if (refreshToken) {
+                await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+                set({ token: accessToken, refreshToken });
+            } else {
+                set({ token: accessToken });
+            }
+        } catch (error) {
+            console.error('Error updating tokens:', error);
+            throw error;
+        }
+    },
+
     initializeAuth: async () => {
         try {
             set({ isLoading: true });
             const token = await getToken();
+            const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
             const user = await getUser();
 
             if (token && user) {
-                set({ user, token, isAuthenticated: true, isLoading: false });
+                set({ 
+                    user, 
+                    token, 
+                    refreshToken,
+                    isAuthenticated: true, 
+                    isLoading: false 
+                });
             } else {
-                set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+                set({ 
+                    user: null, 
+                    token: null, 
+                    refreshToken: null,
+                    isAuthenticated: false, 
+                    isLoading: false 
+                });
             }
         } catch (error) {
             console.error('Error initializing auth:', error);
-            set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+            set({ 
+                user: null, 
+                token: null, 
+                refreshToken: null,
+                isAuthenticated: false, 
+                isLoading: false 
+            });
         }
     },
 

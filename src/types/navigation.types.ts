@@ -9,8 +9,11 @@ export type AuthStackParamList = {
     Login: undefined;
     Register: undefined;
     OTPVerification: {
-        phoneNumber: string;
-        countryCode: string;
+        phoneNumber: string;       // Numéro national
+        countryCode: string;       // Code pays (+212, +224)
+        fullPhoneNumber: string;   // Format E.164 complet
+        sessionKey: string;        // Clé de session du backend
+        expiresIn: number;         // Temps avant expiration
     };
 };
 
