@@ -134,10 +134,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Pas de compte ? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.footerLink}>S'inscrire</Text>
-          </TouchableOpacity>
+          <Text style={styles.footerText}>
+            Nouveau ? Entrez votre numéro pour créer un compte
+          </Text>
         </View>
 
         {/* Country Picker Modal */}

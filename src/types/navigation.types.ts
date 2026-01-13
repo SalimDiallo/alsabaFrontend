@@ -7,7 +7,6 @@ export type RootStackParamList = {
 
 export type AuthStackParamList = {
     Login: undefined;
-    Register: undefined;
     OTPVerification: {
         phoneNumber: string;       // Numéro national
         countryCode: string;       // Code pays (+212, +224)

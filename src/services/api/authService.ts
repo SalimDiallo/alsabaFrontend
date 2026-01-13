@@ -93,16 +93,10 @@ export const authService = {
     // =====================================================
 
     /**
-     * Alias pour requestOTP - Connexion
+     * Alias pour requestOTP - Connexion/Inscription
+     * Le backend crée le compte si le numéro n'existe pas
      */
     login: async (data: PhoneAuthRequest): Promise<OTPResponse> => {
-        return authService.requestOTP(data);
-    },
-
-    /**
-     * Alias pour requestOTP - Inscription (même endpoint)
-     */
-    register: async (data: PhoneAuthRequest): Promise<OTPResponse> => {
         return authService.requestOTP(data);
     },
 
