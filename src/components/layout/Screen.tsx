@@ -9,13 +9,14 @@ import {
   ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants/colors';
+import { COLORS, SPACING } from '@/constants/colors';
 
 interface ScreenProps {
   children: React.ReactNode;
   style?: ViewStyle;
   scrollable?: boolean;
   keyboardAvoiding?: boolean;
+  padding?: boolean;
 }
 
 export const Screen: React.FC<ScreenProps> = ({
@@ -23,14 +24,23 @@ export const Screen: React.FC<ScreenProps> = ({
   style,
   scrollable = false,
   keyboardAvoiding = false,
+  padding = false,
 }) => {
   const Wrapper = scrollable ? ScrollView : View;
   
   // Base content passes children
   const Content = (
     <Wrapper
-      style={[scrollable ? styles.scrollContent : styles.viewContent, style]}
-      contentContainerStyle={scrollable ? styles.scrollContainer : undefined}
+      style={[
+        scrollable ? styles.scrollContent : styles.viewContent,
+        !scrollable && padding && { padding: SPACING.md },
+        style,
+      ]}
+      contentContainerStyle={
+        scrollable
+          ? [styles.scrollContainer, padding && { padding: SPACING.md }]
+          : undefined
+      }
       showsVerticalScrollIndicator={false}
     >
       {children}

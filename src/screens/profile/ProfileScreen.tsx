@@ -1,5 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '@/types/navigation.types';
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/common/Card';
@@ -10,36 +13,38 @@ import { mockUser } from '@/utils/mockData';
 import { formatPhoneNumber } from '@/utils/formatters';
 
 const ProfileScreen = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   const menuItems = [
     {
       icon: 'person-outline',
       label: 'Informations personnelles',
-      onPress: () => console.log('Infos personnelles'),
+      onPress: () => navigation.navigate('PersonalInfo'),
     },
     {
       icon: 'card-outline',
       label: 'Moyens de paiement',
-      onPress: () => console.log('Moyens paiement'),
+      onPress: () => navigation.navigate('PaymentMethods'),
     },
     {
       icon: 'shield-checkmark-outline',
       label: 'Sécurité',
-      onPress: () => console.log('Sécurité'),
+      onPress: () => navigation.navigate('Settings', { title: 'Sécurité' }),
     },
     {
       icon: 'notifications-outline',
       label: 'Notifications',
-      onPress: () => console.log('Notifications'),
+      onPress: () => navigation.navigate('Settings', { title: 'Notifications' }),
     },
     {
       icon: 'help-circle-outline',
       label: 'Aide et support',
-      onPress: () => console.log('Aide'),
+      onPress: () => navigation.navigate('Settings', { title: 'Aide et support' }),
     },
     {
       icon: 'document-text-outline',
       label: 'Conditions d\'utilisation',
-      onPress: () => console.log('CGU'),
+      onPress: () => navigation.navigate('Settings', { title: 'Conditions d\'utilisation' }),
     },
   ];
 
@@ -59,7 +64,7 @@ const ProfileScreen = () => {
   };
 
   return (
-    <Screen scrollable>
+    <Screen padding={false} scrollable>
       <Header title="Profil" />
 
       <View style={styles.content}>
@@ -67,11 +72,11 @@ const ProfileScreen = () => {
         <Card style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
-              {mockUser.firstName?.[0] ?? ''}{mockUser.lastName?.[0] ?? ''}
+              {mockUser.firstName?.[0]}{mockUser.lastName?.[0]}
             </Text>
           </View>
           <Text style={styles.name}>
-            {mockUser.firstName ?? ''} {mockUser.lastName ?? ''}
+            {mockUser.firstName} {mockUser.lastName}
           </Text>
           <Text style={styles.phone}>
             {formatPhoneNumber(mockUser.phoneNumber, mockUser.countryCode)}

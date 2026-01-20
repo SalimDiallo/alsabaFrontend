@@ -1,8 +1,16 @@
+// 1. Mise à jour de src/types/navigation.types.ts
+// ==========================================
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
     Auth: NavigatorScreenParams<AuthStackParamList>;
     Main: NavigatorScreenParams<MainTabParamList>;
+    // Écrans modaux/empilés
+    FundWallet: undefined;
+    CreateOffer: undefined;
+    PersonalInfo: undefined;
+    PaymentMethods: undefined;
+    Settings: { title: string };
 };
 
 export type AuthStackParamList = {
@@ -19,15 +27,4 @@ export type MainTabParamList = {
     Offers: undefined;
     Transactions: undefined;
     Profile: undefined;
-};
-
-export type OffersStackParamList = {
-    OffersList: undefined;
-    CreateOffer: undefined;
-    OfferDetails: {
-        offerId: string;
-    };
-    ConfirmTransaction: {
-        offerId: string;
-    };
 };

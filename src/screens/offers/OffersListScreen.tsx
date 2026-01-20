@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '@/types/navigation.types';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
@@ -11,6 +14,7 @@ import { COLORS, SPACING, TYPOGRAPHY } from '@/constants/colors';
 import { mockOffers } from '@/utils/mockData';
 
 const OffersListScreen = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredOffers = mockOffers.filter((offer) =>
@@ -22,9 +26,10 @@ const OffersListScreen = () => {
     // Navigation vers confirmation
   };
 
+  
   const handleCreateOffer = () => {
     console.log('Créer une nouvelle offre');
-    // Navigation vers création d'offre
+    navigation.navigate('CreateOffer');
   };
 
   return (

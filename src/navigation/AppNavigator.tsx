@@ -1,3 +1,5 @@
+// 2. Mise à jour de src/navigation/AppNavigator.tsx
+// ==========================================
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -6,6 +8,13 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { AuthNavigator } from './AuthNavigator';
 import { MainNavigator } from './MainNavigator';
 import { Loader } from '@/components/common/Loader';
+
+// Import des écrans modaux
+import FundWalletScreen from '@/screens/wallet/FundWalletScreen';
+import CreateOfferScreen from '@/screens/offers/CreateOfferScreen';
+import PersonalInfoScreen from '@/screens/profile/PersonalInfoScreen';
+import PaymentMethodsScreen from '@/screens/profile/PaymentMethodsScreen';
+import GenericSettingsScreen from '@/screens/profile/GenericSettingsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -25,14 +34,38 @@ export const AppNavigator: React.FC = () => {
     return <Loader fullScreen message="Chargement..." />;
   }
 
-  // En mode dev, on affiche directement l'app principale
   const showMainApp = DEV_MODE || isAuthenticated;
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {showMainApp ? (
-          <Stack.Screen name="Main" component={MainNavigator} />
+          <>
+            <Stack.Screen name="Main" component={MainNavigator} />
+            {/* Écrans modaux */}
+            <Stack.Screen 
+              name="FundWallet" 
+              component={FundWalletScreen}
+              options={{ presentation: 'modal' }}
+            />
+            <Stack.Screen 
+              name="CreateOffer" 
+              component={CreateOfferScreen}
+              options={{ presentation: 'modal' }}
+            />
+            <Stack.Screen 
+              name="PersonalInfo" 
+              component={PersonalInfoScreen}
+            />
+            <Stack.Screen 
+              name="PaymentMethods" 
+              component={PaymentMethodsScreen}
+            />
+            <Stack.Screen 
+              name="Settings" 
+              component={GenericSettingsScreen}
+            />
+          </>
         ) : (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         )}

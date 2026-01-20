@@ -9,9 +9,10 @@ import { COLORS, SPACING, TYPOGRAPHY } from '@/constants/colors';
 import { mockWallet, mockUser, mockTransactions } from '@/utils/mockData';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { useNavigation } from '@react-navigation/native';
-
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '@/types/navigation.types';
 const DashboardScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const recentTransactions = mockTransactions.slice(0, 3);
 
@@ -44,23 +45,22 @@ const DashboardScreen = () => {
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions Rapides</Text>
-          <View style={styles.quickActions}>
-            <QuickAction
-              icon="add-circle-outline"
-              label="Alimenter"
-              onPress={() => console.log('Alimenter')}
-            />
-            <View style={styles.actionSpace} />
-            <QuickAction
-              icon="swap-horizontal-outline"
-              label="Créer une offre"
-              onPress={() => console.log('Créer offre')}
-              variant="secondary"
-            />
-          </View>
-        </View>
-
+      <Text style={styles.sectionTitle}>Actions Rapides</Text>
+      <View style={styles.quickActions}>
+        <QuickAction
+          icon="add-circle-outline"
+          label="Alimenter"
+          onPress={() => navigation.navigate('FundWallet')}
+        />
+        <View style={styles.actionSpace} />
+        <QuickAction
+          icon="swap-horizontal-outline"
+          label="Créer une offre"
+          onPress={() => navigation.navigate('CreateOffer')}
+          variant="secondary"
+        />
+      </View>
+    </View>
         {/* Taux de change */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Taux du jour</Text>
