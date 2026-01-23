@@ -19,7 +19,7 @@ import GenericSettingsScreen from '@/screens/profile/GenericSettingsScreen';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 // MODE DÉVELOPPEMENT - Mettre à true pour bypass l'authentification
-const DEV_MODE = true;
+const DEV_MODE = false;
 
 export const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();

@@ -1,7 +1,9 @@
+// IP locale pour accéder au backend Django
+// Utilisez la même IP que celle affichée par Expo (exp://10.16.24.147:8081)
 export const API_CONFIG = {
     BASE_URL: __DEV__
-        ? 'http://localhost:3000/api'
-        : 'https://api.alsax.com/api',
+        ? 'http://10.16.24.147:8000/api/accounts'  // Votre IP locale
+        : 'https://api.alsax.com/api/accounts',
     TIMEOUT: 30000,
     HEADERS: {
         'Content-Type': 'application/json',

@@ -5,14 +5,22 @@ import { User } from '@/types/auth.types';
 
 export const mockUser: User = {
     id: '1',
-    phoneNumber: '612345678',
-    countryCode: '+212',
+    full_phone_number: '+212612345678',
+    phone_number: '612345678',
+    country_code: '+212',
+    phone_verified: true,
+    phone_verified_at: new Date().toISOString(),
+    first_name: 'Ahmed',
+    last_name: 'Benali',
+    email: 'ahmed@example.com',
+    kyc_status: 'approved',
+    kyc_verified_at: new Date().toISOString(),
+    date_joined: new Date().toISOString(),
+    last_login: new Date().toISOString(),
+    is_active: true,
+    // Alias
+    is_verified: true,
     currency: 'MAD',
-    firstName: 'Ahmed',
-    lastName: 'Benali',
-    verified: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
 };
 
 export const mockWallet: Wallet = {

@@ -4,279 +4,349 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Alert,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '@/types/navigation.types';
-import { Screen } from '@/components/layout/Screen';
-import { Input } from '@/components/common/Input';
-import { Button } from '@/components/common/Button';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-import { APP_CONFIG } from '@/constants/config';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS } from '@/constants/colors';
 import { validatePhoneNumber } from '@/utils/validators';
 import { authService } from '@/services/api/authService';
+
+const COUNTRIES = [
+  { code: '+212', name: 'Maroc', flag: '🇲🇦' },
+  { code: '+224', name: 'Guinée', flag: '🇬🇳' },
+];
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 };
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-  const [countryCode, setCountryCode] = useState('+212');
+  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleCountrySwitch = () => {
-    setCountryCode(countryCode === '+212' ? '+224' : '+212');
-  };
+  const [showPicker, setShowPicker] = useState(false);
 
   const handleLogin = async () => {
-    // Validation
     if (!phoneNumber.trim()) {
       Alert.alert('Erreur', 'Veuillez entrer votre numéro de téléphone');
       return;
     }
 
-    if (!validatePhoneNumber(phoneNumber, countryCode)) {
+    if (!validatePhoneNumber(phoneNumber, selectedCountry.code)) {
       Alert.alert('Erreur', 'Numéro de téléphone invalide');
       return;
     }
 
+    console.log('🔵 Login attempt:', {
+      phone_number: phoneNumber,
+      country_code: selectedCountry.code,
+    });
+
     setIsLoading(true);
     try {
-      // Appel API pour envoyer l'OTP
-      await authService.login({
-        phoneNumber,
-        countryCode,
+      const response = await authService.login({
+        phone_number: phoneNumber,
+        country_code: selectedCountry.code,
       });
 
-      // Navigation vers l'écran OTP
+      console.log('✅ Login success:', response);
+
+      // Navigation avec les données du backend
       navigation.navigate('OTPVerification', {
         phoneNumber,
-        countryCode,
+        countryCode: selectedCountry.code,
+        fullPhoneNumber: response.phone_number,
+        sessionKey: response.session_key,
+        expiresIn: response.expires_in,
       });
     } catch (error: any) {
+      console.log('❌ Login error:', error);
       Alert.alert('Erreur', error.message || 'Une erreur est survenue');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const isValid = phoneNumber.length >= 8;
+
   return (
-    <Screen scrollable keyboardAvoiding>
-      <View style={styles.container}>
-        {/* Logo */}
-        <View style={styles.logoContainer}>
-          <View style={styles.logoPlaceholder}>
-            <Text style={styles.logoText}>ALSAX</Text>
-          </View>
-          <Text style={styles.tagline}>Échange P2P MAD ⇄ GNF</Text>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.logo}>ALSAX</Text>
+          <Text style={styles.tagline}>Échange MAD ⇄ GNF</Text>
         </View>
 
-        {/* Titre */}
-        <View style={styles.header}>
+        {/* Main */}
+        <View style={styles.main}>
           <Text style={styles.title}>Connexion</Text>
           <Text style={styles.subtitle}>
-            Entrez votre numéro pour recevoir un code de vérification
+            Entrez votre numéro de téléphone pour recevoir un code de vérification
           </Text>
-        </View>
 
-        {/* Formulaire */}
-        <View style={styles.form}>
-          {/* Sélecteur de pays */}
-          <View style={styles.countrySelector}>
-            <TouchableOpacity
-              style={[
-                styles.countryButton,
-                countryCode === '+212' && styles.countryButtonActive,
-              ]}
-              onPress={() => setCountryCode('+212')}
+          {/* Phone Input Row */}
+          <View style={styles.phoneRow}>
+            {/* Country Selector */}
+            <TouchableOpacity 
+              style={styles.countrySelector}
+              onPress={() => setShowPicker(true)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.flag}>🇲🇦</Text>
-              <Text
-                style={[
-                  styles.countryText,
-                  countryCode === '+212' && styles.countryTextActive,
-                ]}
-              >
-                Maroc
-              </Text>
+              <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
+              <Text style={styles.countryCode}>{selectedCountry.code}</Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.countryButton,
-                countryCode === '+224' && styles.countryButtonActive,
-              ]}
-              onPress={() => setCountryCode('+224')}
-            >
-              <Text style={styles.flag}>🇬🇳</Text>
-              <Text
-                style={[
-                  styles.countryText,
-                  countryCode === '+224' && styles.countryTextActive,
-                ]}
-              >
-                Guinée
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Numéro de téléphone */}
-          <View style={styles.phoneInputContainer}>
-            <View style={styles.countryCodeBox}>
-              <Text style={styles.countryCodeText}>{countryCode}</Text>
-            </View>
-            <Input
+            {/* Phone Number Input */}
+            <TextInput
+              style={styles.phoneInput}
               placeholder="6XX XX XX XX"
+              placeholderTextColor="#999"
               value={phoneNumber}
               onChangeText={setPhoneNumber}
               keyboardType="phone-pad"
               maxLength={12}
-              style={styles.phoneInput}
             />
           </View>
 
-          {/* Bouton de connexion */}
-          <Button
-            title="Continuer"
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[styles.button, !isValid && styles.buttonDisabled]}
             onPress={handleLogin}
-            loading={isLoading}
-            fullWidth
-            size="large"
-            style={styles.button}
-          />
-        </View>
-
-        {/* Lien vers inscription */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Vous n'avez pas de compte ? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.link}>S'inscrire</Text>
+            disabled={isLoading || !isValid}
+          >
+            <Text style={styles.buttonText}>
+              {isLoading ? 'Chargement...' : 'Continuer'}
+            </Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </Screen>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Nouveau ? Entrez votre numéro pour créer un compte
+          </Text>
+        </View>
+
+        {/* Country Picker Modal */}
+        <Modal
+          visible={showPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowPicker(false)}
+        >
+          <Pressable 
+            style={styles.modalOverlay}
+            onPress={() => setShowPicker(false)}
+          >
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Sélectionnez un pays</Text>
+              
+              {COUNTRIES.map((country) => (
+                <TouchableOpacity
+                  key={country.code}
+                  style={[
+                    styles.countryOption,
+                    selectedCountry.code === country.code && styles.countryOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedCountry(country);
+                    setShowPicker(false);
+                  }}
+                >
+                  <Text style={styles.optionFlag}>{country.flag}</Text>
+                  <View style={styles.optionInfo}>
+                    <Text style={styles.optionName}>{country.name}</Text>
+                    <Text style={styles.optionCode}>{country.code}</Text>
+                  </View>
+                  {selectedCountry.code === country.code && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: SPACING.xl,
+    backgroundColor: '#FFFFFF',
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: SPACING.xxl,
-  },
-  logoPlaceholder: {
-    width: 80,
-    height: 80,
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.md,
-  },
-  logoText: {
-    fontSize: TYPOGRAPHY.sizes.xl,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.text.white,
-  },
-  tagline: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    color: COLORS.text.secondary,
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
   },
   header: {
-    marginBottom: SPACING.xl,
+    alignItems: 'center',
+    paddingTop: 48,
+    paddingBottom: 24,
+  },
+  logo: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.primary,
+    letterSpacing: 3,
+  },
+  tagline: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  main: {
+    flex: 1,
+    paddingTop: 32,
   },
   title: {
-    fontSize: TYPOGRAPHY.sizes.xxl,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.text.primary,
-    marginBottom: SPACING.sm,
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: TYPOGRAPHY.sizes.md,
-    color: COLORS.text.secondary,
+    fontSize: 15,
+    color: '#666',
     lineHeight: 22,
+    marginBottom: 32,
   },
-  form: {
-    marginBottom: SPACING.xl,
+  phoneRow: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
+    overflow: 'hidden',
   },
   countrySelector: {
     flexDirection: 'row',
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  countryButton: {
-    flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    backgroundColor: '#F0F0F0',
+    borderRightWidth: 1,
+    borderRightColor: '#E0E0E0',
+    gap: 6,
   },
-  countryButtonActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.background,
+  countryFlag: {
+    fontSize: 20,
   },
-  flag: {
-    fontSize: 24,
-    marginRight: SPACING.sm,
+  countryCode: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
-  countryText: {
-    fontSize: TYPOGRAPHY.sizes.md,
-    color: COLORS.text.secondary,
-    fontWeight: TYPOGRAPHY.weights.medium,
-  },
-  countryTextActive: {
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.weights.semibold,
-  },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.lg,
-  },
-  countryCodeBox: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  countryCodeText: {
-    fontSize: TYPOGRAPHY.sizes.md,
-    fontWeight: TYPOGRAPHY.weights.semibold,
-    color: COLORS.text.primary,
+  dropdownArrow: {
+    fontSize: 10,
+    color: '#666',
+    marginLeft: 2,
   },
   phoneInput: {
     flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 18,
+    color: '#1A1A1A',
+    letterSpacing: 0.5,
   },
   button: {
-    marginTop: SPACING.md,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#E0E0E0',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 'auto',
-    paddingVertical: SPACING.lg,
+    paddingVertical: 24,
   },
   footerText: {
-    fontSize: TYPOGRAPHY.sizes.md,
-    color: COLORS.text.secondary,
+    fontSize: 15,
+    color: '#666',
   },
-  link: {
-    fontSize: TYPOGRAPHY.sizes.md,
+  footerLink: {
+    fontSize: 15,
     color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.weights.semibold,
+    fontWeight: '600',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 320,
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 8,
+  },
+  countryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+  },
+  countryOptionSelected: {
+    backgroundColor: '#F0FDF4',
+  },
+  optionFlag: {
+    fontSize: 28,
+    marginRight: 16,
+  },
+  optionInfo: {
+    flex: 1,
+  },
+  optionName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  optionCode: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  checkmark: {
+    fontSize: 18,
+    color: COLORS.primary,
+    fontWeight: '700',
   },
 });
 

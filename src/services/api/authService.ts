@@ -1,43 +1,112 @@
 import { apiClient } from './apiClient';
 import {
-    LoginRequest,
-    RegisterRequest,
+    PhoneAuthRequest,
     OTPVerifyRequest,
-    AuthResponse,
+    RefreshTokenRequest,
+    DeleteAccountRequest,
+    DeleteAccountConfirmRequest,
     OTPResponse,
+    AuthResponse,
+    SessionStatusResponse,
+    RefreshTokenResponse,
+    ProfileResponse,
+    DeleteRequestResponse,
 } from '@/types/auth.types';
 
+// =====================================================
+// Service d'authentification - API Backend Django
+// =====================================================
+
 export const authService = {
-    // Inscription
-    register: async (data: RegisterRequest): Promise<OTPResponse> => {
-        return apiClient.post<OTPResponse>('/auth/register', data);
+    // =====================================================
+    // Authentification
+    // =====================================================
+
+    /**
+     * Demande OTP pour connexion/inscription
+     * POST /auth/phone/
+     */
+    requestOTP: async (data: PhoneAuthRequest): Promise<OTPResponse> => {
+        return apiClient.post<OTPResponse>('/auth/phone/', data);
     },
 
-    // Connexion
-    login: async (data: LoginRequest): Promise<OTPResponse> => {
-        return apiClient.post<OTPResponse>('/auth/login', data);
-    },
-
-    // Vérification OTP
+    /**
+     * Vérification du code OTP
+     * POST /auth/verify/
+     */
     verifyOTP: async (data: OTPVerifyRequest): Promise<AuthResponse> => {
-        return apiClient.post<AuthResponse>('/auth/verify-otp', data);
+        return apiClient.post<AuthResponse>('/auth/verify/', data);
     },
 
-    // Renvoyer OTP
-    resendOTP: async (phoneNumber: string, countryCode: string): Promise<OTPResponse> => {
-        return apiClient.post<OTPResponse>('/auth/resend-otp', {
-            phoneNumber,
-            countryCode,
+    /**
+     * Vérifier le statut d'une session OTP
+     * GET /auth/status/?session_key=xxx
+     */
+    getSessionStatus: async (sessionKey: string): Promise<SessionStatusResponse> => {
+        return apiClient.get<SessionStatusResponse>(`/auth/status/?session_key=${sessionKey}`);
+    },
+
+    /**
+     * Rafraîchir le token d'accès
+     * POST /auth/refresh/
+     */
+    refreshToken: async (refreshToken: string): Promise<RefreshTokenResponse> => {
+        return apiClient.post<RefreshTokenResponse>('/auth/refresh/', {
+            refresh: refreshToken,
         });
     },
 
-    // Récupérer le profil
-    getProfile: async (): Promise<AuthResponse> => {
-        return apiClient.get<AuthResponse>('/auth/profile');
+    // =====================================================
+    // Profil utilisateur
+    // =====================================================
+
+    /**
+     * Récupérer le profil de l'utilisateur connecté
+     * GET /profile/
+     */
+    getProfile: async (): Promise<ProfileResponse> => {
+        return apiClient.get<ProfileResponse>('/profile/');
     },
 
-    // Déconnexion
-    logout: async (): Promise<void> => {
-        return apiClient.post<void>('/auth/logout');
+    // =====================================================
+    // Suppression de compte
+    // =====================================================
+
+    /**
+     * Demander la suppression du compte (envoie OTP)
+     * POST /account/delete/
+     */
+    requestDeleteAccount: async (data?: DeleteAccountRequest): Promise<DeleteRequestResponse> => {
+        return apiClient.post<DeleteRequestResponse>('/account/delete/', data);
+    },
+
+    /**
+     * Confirmer la suppression du compte avec OTP
+     * POST /account/delete/confirm/
+     */
+    confirmDeleteAccount: async (data: DeleteAccountConfirmRequest): Promise<{ success: boolean; message: string }> => {
+        return apiClient.post('/account/delete/confirm/', data);
+    },
+
+    // =====================================================
+    // Méthodes utilitaires (alias pour compatibilité)
+    // =====================================================
+
+    /**
+     * Alias pour requestOTP - Connexion/Inscription
+     * Le backend crée le compte si le numéro n'existe pas
+     */
+    login: async (data: PhoneAuthRequest): Promise<OTPResponse> => {
+        return authService.requestOTP(data);
+    },
+
+    /**
+     * Renvoyer le code OTP
+     */
+    resendOTP: async (phoneNumber: string, countryCode: string): Promise<OTPResponse> => {
+        return authService.requestOTP({
+            phone_number: phoneNumber,
+            country_code: countryCode,
+        });
     },
 };

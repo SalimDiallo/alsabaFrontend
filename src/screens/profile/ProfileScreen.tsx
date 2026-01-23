@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
 import { RootStackParamList } from '@/types/navigation.types';
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
@@ -9,13 +10,30 @@ import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
 import { Divider } from '@/components/common/Divider';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-import { mockUser } from '@/utils/mockData';
+import { useAuthStore } from '@/store/useAuthStore';
 import { formatPhoneNumber } from '@/utils/formatters';
 
-const ProfileScreen = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-  const menuItems = [
+const ProfileScreen = () => {
+  const navigation = useNavigation<Nav>();
+  const { user, logout } = useAuthStore();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const firstName = user?.first_name ?? '';
+  const lastName = user?.last_name ?? '';
+  const phoneNumber = user?.phone_number ?? '';
+  const countryCode = user?.country_code ?? '+212';
+
+  const initials = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase();
+
+  const comingSoon = () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt');
+
+  const menuItems: Array<{
+    icon: string;
+    label: string;
+    onPress: () => void;
+  }> = [
     {
       icon: 'person-outline',
       label: 'Informations personnelles',
@@ -43,24 +61,34 @@ const ProfileScreen = () => {
     },
     {
       icon: 'document-text-outline',
-      label: 'Conditions d\'utilisation',
-      onPress: () => navigation.navigate('Settings', { title: 'Conditions d\'utilisation' }),
+      label: "Conditions d'utilisation",
+      onPress: () => navigation.navigate('Settings', { title: "Conditions d'utilisation" }),
     },
-  ];
+  ].map((item) => ({
+    ...item,
+    // Si jamais une route n'existe pas dans ton navigator, remplace ici par comingSoon()
+    onPress: item.onPress ?? comingSoon,
+  }));
 
   const handleLogout = () => {
-    Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Déconnexion',
-          style: 'destructive',
-          onPress: () => console.log('Déconnexion'),
+    Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Déconnexion',
+        style: 'destructive',
+        onPress: async () => {
+          setIsLoggingOut(true);
+          try {
+            await logout();
+          } catch (error) {
+            console.log('Logout error:', error);
+            Alert.alert('Erreur', 'Impossible de se déconnecter. Réessayez.');
+          } finally {
+            setIsLoggingOut(false);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
@@ -71,28 +99,39 @@ const ProfileScreen = () => {
         {/* Profil utilisateur */}
         <Card style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {mockUser.firstName?.[0]}{mockUser.lastName?.[0]}
-            </Text>
+            <Text style={styles.avatarText}>{initials || 'U'}</Text>
           </View>
+
           <Text style={styles.name}>
-            {mockUser.firstName} {mockUser.lastName}
+            {(firstName || 'Utilisateur') + (lastName ? ` ${lastName}` : '')}
           </Text>
+
           <Text style={styles.phone}>
-            {formatPhoneNumber(mockUser.phoneNumber, mockUser.countryCode)}
+            {phoneNumber ? formatPhoneNumber(phoneNumber, countryCode) : 'Non renseigné'}
           </Text>
-          {mockUser.verified && (
-            <View style={styles.verifiedBadge}>
-              <Icon name="checkmark-circle" size={16} color={COLORS.success} />
-              <Text style={styles.verifiedText}>Compte vérifié</Text>
-            </View>
-          )}
+
+          {/* Badges */}
+          <View style={styles.badgesContainer}>
+            {!!user?.phone_verified && (
+              <View style={styles.phoneBadge}>
+                <Icon name="call-outline" size={14} color={COLORS.primary} />
+                <Text style={styles.phoneBadgeText}>Numéro vérifié</Text>
+              </View>
+            )}
+
+            {user?.kyc_status === 'approved' && (
+              <View style={styles.verifiedBadge}>
+                <Icon name="checkmark-circle" size={16} color={COLORS.success} />
+                <Text style={styles.verifiedText}>Compte vérifié</Text>
+              </View>
+            )}
+          </View>
         </Card>
 
         {/* Menu */}
         <Card style={styles.menuCard}>
           {menuItems.map((item, index) => (
-            <View key={index}>
+            <View key={`${item.label}-${index}`}>
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={item.onPress}
@@ -112,12 +151,14 @@ const ProfileScreen = () => {
           style={styles.logoutButton}
           onPress={handleLogout}
           activeOpacity={0.7}
+          disabled={isLoggingOut}
         >
           <Icon name="log-out-outline" size={24} color={COLORS.error} />
-          <Text style={styles.logoutText}>Déconnexion</Text>
+          <Text style={styles.logoutText}>
+            {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
+          </Text>
         </TouchableOpacity>
 
-        {/* Version */}
         <Text style={styles.version}>Version 1.0.0</Text>
       </View>
     </Screen>
@@ -158,6 +199,26 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.sizes.md,
     color: COLORS.text.secondary,
     marginBottom: SPACING.sm,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+  },
+  phoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  phoneBadgeText: {
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    marginLeft: SPACING.xs,
   },
   verifiedBadge: {
     flexDirection: 'row',
