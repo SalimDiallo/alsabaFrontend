@@ -11,6 +11,8 @@ export type RootStackParamList = {
     PersonalInfo: undefined;
     PaymentMethods: undefined;
     Settings: { title: string };
+    Content: { docId: string };
+
 };
 
 export type AuthStackParamList = {

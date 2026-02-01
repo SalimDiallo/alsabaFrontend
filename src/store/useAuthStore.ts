@@ -1,25 +1,23 @@
+// src/store/useAuthStore.ts
 import { create } from 'zustand';
-import { AuthState, User } from '@/types/auth.types';
-import {
-    saveToken,
-    removeToken,
-    saveUser,
-    getToken,
-    getUser,
-    clearStorage
-} from '@/services/storage/asyncStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '@/services/api/authService';
+import { AuthState, User } from '@/types/auth.types';
+import { saveToken, saveUser, getToken, getUser, clearStorage } from '@/services/storage/asyncStorage';
 
 const REFRESH_TOKEN_KEY = '@alsax_refresh_token';
 
 interface AuthStore extends AuthState {
-    // Actions
+    isBootstrapping: boolean; // ✅ AJOUT
+
     setAuth: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
     logout: () => Promise<void>;
     updateUser: (user: Partial<User>) => Promise<void>;
     initializeAuth: () => Promise<void>;
     setLoading: (isLoading: boolean) => void;
     updateTokens: (accessToken: string, refreshToken?: string) => Promise<void>;
+
+    refreshProfile: () => Promise<User | null>;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -27,109 +25,107 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     token: null,
     refreshToken: null,
     isAuthenticated: false,
-    isLoading: true,
+
+    // ✅ IMPORTANT
+    isBootstrapping: true,
+    isLoading: false,
 
     setAuth: async (user, accessToken, refreshToken) => {
-        try {
-            await saveToken(accessToken);
-            await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-            await saveUser(user);
-            set({ 
-                user, 
-                token: accessToken, 
-                refreshToken,
-                isAuthenticated: true, 
-                isLoading: false 
-            });
-        } catch (error) {
-            console.error('Error setting auth:', error);
-            throw error;
-        }
+        await saveToken(accessToken);
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        await saveUser(user);
+        set({
+            user,
+            token: accessToken,
+            refreshToken,
+            isAuthenticated: true,
+            isBootstrapping: false,
+            isLoading: false,
+        });
     },
 
     logout: async () => {
-        try {
-            await clearStorage();
-            await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
-            set({ 
-                user: null, 
-                token: null, 
-                refreshToken: null,
-                isAuthenticated: false, 
-                isLoading: false 
-            });
-        } catch (error) {
-            console.error('Error logging out:', error);
-            throw error;
-        }
+        await clearStorage();
+        await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+        set({
+            user: null,
+            token: null,
+            refreshToken: null,
+            isAuthenticated: false,
+            isBootstrapping: false,
+            isLoading: false,
+        });
     },
 
     updateUser: async (userData) => {
-        try {
-            const currentUser = get().user;
-            if (!currentUser) return;
-
-            const updatedUser = { ...currentUser, ...userData };
-            await saveUser(updatedUser);
-            set({ user: updatedUser });
-        } catch (error) {
-            console.error('Error updating user:', error);
-            throw error;
-        }
+        const currentUser = get().user;
+        if (!currentUser) return;
+        const updatedUser = { ...currentUser, ...userData };
+        await saveUser(updatedUser);
+        set({ user: updatedUser });
     },
 
     updateTokens: async (accessToken, refreshToken) => {
-        try {
-            await saveToken(accessToken);
-            if (refreshToken) {
-                await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-                set({ token: accessToken, refreshToken });
-            } else {
-                set({ token: accessToken });
-            }
-        } catch (error) {
-            console.error('Error updating tokens:', error);
-            throw error;
+        await saveToken(accessToken);
+        if (refreshToken) {
+            await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+            set({ token: accessToken, refreshToken });
+        } else {
+            set({ token: accessToken });
         }
     },
 
+    // ✅ Boot uniquement
     initializeAuth: async () => {
         try {
-            set({ isLoading: true });
+            set({ isBootstrapping: true });
+
             const token = await getToken();
             const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
             const user = await getUser();
 
             if (token && user) {
-                set({ 
-                    user, 
-                    token, 
+                set({
+                    user,
+                    token,
                     refreshToken,
-                    isAuthenticated: true, 
-                    isLoading: false 
+                    isAuthenticated: true,
+                    isBootstrapping: false,
                 });
             } else {
-                set({ 
-                    user: null, 
-                    token: null, 
+                set({
+                    user: null,
+                    token: null,
                     refreshToken: null,
-                    isAuthenticated: false, 
-                    isLoading: false 
+                    isAuthenticated: false,
+                    isBootstrapping: false,
                 });
             }
-        } catch (error) {
-            console.error('Error initializing auth:', error);
-            set({ 
-                user: null, 
-                token: null, 
+        } catch (e) {
+            set({
+                user: null,
+                token: null,
                 refreshToken: null,
-                isAuthenticated: false, 
-                isLoading: false 
+                isAuthenticated: false,
+                isBootstrapping: false,
             });
         }
     },
 
-    setLoading: (isLoading) => {
-        set({ isLoading });
+    // ✅ Action loading (ne doit plus casser la navigation)
+    refreshProfile: async () => {
+        try {
+            set({ isLoading: true });
+            const res = await authService.getProfile();
+            await saveUser(res.user);
+            set({ user: res.user });
+            return res.user;
+        } catch (e) {
+            return null;
+        } finally {
+            set({ isLoading: false });
+        }
     },
+
+    setLoading: (isLoading) => set({ isLoading }),
 }));

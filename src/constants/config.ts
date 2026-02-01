@@ -47,3 +47,6 @@ export const NOTIFICATION_CONFIG = {
     PUSH_ENABLED: true,
     SMS_ENABLED: true,
 };
+
+// Mode développement personnalisé pour bypasser l'authentification
+export const DEV_MODE = true;

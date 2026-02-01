@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,59 +16,57 @@ import { formatPhoneNumber } from '@/utils/formatters';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const ProfileScreen = () => {
-  const navigation = useNavigation<Nav>();
-  const { user, logout } = useAuthStore();
+  const navigation = useNavigation<any>(); // <- important en Tab context
+  const { user, logout, refreshProfile, isLoading } = useAuthStore();
+
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ✅ Navigation stack robuste : on cible explicitement le RootStack
+  const goStack = (name: keyof RootStackParamList, params?: any) => {
+    const root = navigation.getParent?.('RootStack');
+    if (root) {
+      root.navigate(name as any, params);
+      return;
+    }
+
+    // fallback (si jamais l'id n'est pas trouvé)
+    const parent = navigation.getParent?.();
+    if (parent) {
+      parent.navigate(name as any, params);
+      return;
+    }
+
+    navigation.navigate(name as any, params);
+  };
+
+  useEffect(() => {
+  if (!user) refreshProfile();
+}, [user, refreshProfile]);
 
   const firstName = user?.first_name ?? '';
   const lastName = user?.last_name ?? '';
   const phoneNumber = user?.phone_number ?? '';
   const countryCode = user?.country_code ?? '+212';
 
-  const initials = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase();
+  const initials = useMemo(() => {
+    return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase();
+  }, [firstName, lastName]);
 
   const comingSoon = () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt');
 
   const menuItems: Array<{
-    icon: string;
+    icon: React.ComponentProps<typeof Icon>['name'];
     label: string;
     onPress: () => void;
-  }> = [
-    {
-      icon: 'person-outline',
-      label: 'Informations personnelles',
-      onPress: () => navigation.navigate('PersonalInfo'),
-    },
-    {
-      icon: 'card-outline',
-      label: 'Moyens de paiement',
-      onPress: () => navigation.navigate('PaymentMethods'),
-    },
-    {
-      icon: 'shield-checkmark-outline',
-      label: 'Sécurité',
-      onPress: () => navigation.navigate('Settings', { title: 'Sécurité' }),
-    },
-    {
-      icon: 'notifications-outline',
-      label: 'Notifications',
-      onPress: () => navigation.navigate('Settings', { title: 'Notifications' }),
-    },
-    {
-      icon: 'help-circle-outline',
-      label: 'Aide et support',
-      onPress: () => navigation.navigate('Settings', { title: 'Aide et support' }),
-    },
-    {
-      icon: 'document-text-outline',
-      label: "Conditions d'utilisation",
-      onPress: () => navigation.navigate('Settings', { title: "Conditions d'utilisation" }),
-    },
-  ].map((item) => ({
-    ...item,
-    // Si jamais une route n'existe pas dans ton navigator, remplace ici par comingSoon()
-    onPress: item.onPress ?? comingSoon,
-  }));
+  }> = ([
+    { icon: 'person-outline', label: 'Informations personnelles', onPress: () => goStack('PersonalInfo') },
+    { icon: 'card-outline', label: 'Moyens de paiement', onPress: () => goStack('PaymentMethods') },
+    { icon: 'shield-checkmark-outline', label: 'Sécurité', onPress: () => goStack('Settings', { title: 'Sécurité' }) },
+    { icon: 'notifications-outline', label: 'Notifications', onPress: () => goStack('Settings', { title: 'Notifications' }) },
+    { icon: 'help-circle-outline', label: 'Aide et support', onPress: () => goStack('Settings', { title: 'Aide et support' }) },
+    { icon: 'document-text-outline', label: "Conditions d'utilisation", onPress: () => goStack('Settings', { title: "Conditions d'utilisation" }) },
+  ] as const).map((item) => ({ ...item, onPress: item.onPress ?? comingSoon }));
 
   const handleLogout = () => {
     Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
@@ -80,8 +78,8 @@ const ProfileScreen = () => {
           setIsLoggingOut(true);
           try {
             await logout();
-          } catch (error) {
-            console.log('Logout error:', error);
+          } catch (err) {
+            console.log('Logout error:', err);
             Alert.alert('Erreur', 'Impossible de se déconnecter. Réessayez.');
           } finally {
             setIsLoggingOut(false);
@@ -91,26 +89,46 @@ const ProfileScreen = () => {
     ]);
   };
 
+  const handleRefresh = async () => {
+    try {
+      setError(null);
+      await refreshProfile();
+    } catch (e) {
+      setError('Impossible de rafraîchir le profil');
+    }
+  };
+
   return (
     <Screen padding={false} scrollable>
       <Header title="Profil" />
 
       <View style={styles.content}>
-        {/* Profil utilisateur */}
+        <View style={styles.topRow}>
+          <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh} activeOpacity={0.7}>
+            <Icon name="refresh-outline" size={20} color={COLORS.text.primary} />
+            <Text style={styles.refreshText}>{isLoading ? 'Chargement…' : 'Rafraîchir'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {!!error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
         <Card style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials || 'U'}</Text>
           </View>
 
           <Text style={styles.name}>
-            {(firstName || 'Utilisateur') + (lastName ? ` ${lastName}` : '')}
+            {isLoading ? 'Chargement…' : (firstName || 'Utilisateur') + (lastName ? ` ${lastName}` : '')}
           </Text>
 
           <Text style={styles.phone}>
             {phoneNumber ? formatPhoneNumber(phoneNumber, countryCode) : 'Non renseigné'}
           </Text>
 
-          {/* Badges */}
           <View style={styles.badgesContainer}>
             {!!user?.phone_verified && (
               <View style={styles.phoneBadge}>
@@ -128,16 +146,11 @@ const ProfileScreen = () => {
           </View>
         </Card>
 
-        {/* Menu */}
         <Card style={styles.menuCard}>
           {menuItems.map((item, index) => (
             <View key={`${item.label}-${index}`}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={item.onPress}
-                activeOpacity={0.7}
-              >
-                <Icon name={item.icon as any} size={24} color={COLORS.text.secondary} />
+              <TouchableOpacity style={styles.menuItem} onPress={item.onPress} activeOpacity={0.7}>
+                <Icon name={item.icon} size={24} color={COLORS.text.secondary} />
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 <Icon name="chevron-forward" size={20} color={COLORS.text.disabled} />
               </TouchableOpacity>
@@ -146,7 +159,6 @@ const ProfileScreen = () => {
           ))}
         </Card>
 
-        {/* Déconnexion */}
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={handleLogout}
@@ -154,9 +166,7 @@ const ProfileScreen = () => {
           disabled={isLoggingOut}
         >
           <Icon name="log-out-outline" size={24} color={COLORS.error} />
-          <Text style={styles.logoutText}>
-            {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
-          </Text>
+          <Text style={styles.logoutText}>{isLoggingOut ? 'Déconnexion…' : 'Déconnexion'}</Text>
         </TouchableOpacity>
 
         <Text style={styles.version}>Version 1.0.0</Text>
@@ -166,15 +176,29 @@ const ProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-    padding: SPACING.md,
-  },
-  profileCard: {
+  content: { flex: 1, padding: SPACING.md },
+
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: SPACING.sm },
+  refreshBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.xl,
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.surface,
+  },
+  refreshText: { color: COLORS.text.primary, fontWeight: TYPOGRAPHY.weights.medium },
+
+  errorBanner: {
+    backgroundColor: '#FDECEA',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
     marginBottom: SPACING.md,
   },
+  errorText: { color: COLORS.error, fontSize: TYPOGRAPHY.sizes.sm },
+
+  profileCard: { alignItems: 'center', padding: SPACING.xl, marginBottom: SPACING.md },
   avatar: {
     width: 80,
     height: 80,
@@ -184,28 +208,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: SPACING.md,
   },
-  avatarText: {
-    fontSize: TYPOGRAPHY.sizes.xxl,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.text.white,
-  },
+  avatarText: { fontSize: TYPOGRAPHY.sizes.xxl, fontWeight: TYPOGRAPHY.weights.bold, color: COLORS.text.white },
   name: {
     fontSize: TYPOGRAPHY.sizes.xl,
     fontWeight: TYPOGRAPHY.weights.bold,
     color: COLORS.text.primary,
     marginBottom: SPACING.xs / 2,
   },
-  phone: {
-    fontSize: TYPOGRAPHY.sizes.md,
-    color: COLORS.text.secondary,
-    marginBottom: SPACING.sm,
-  },
-  badgesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-  },
+  phone: { fontSize: TYPOGRAPHY.sizes.md, color: COLORS.text.secondary, marginBottom: SPACING.sm },
+
+  badgesContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: SPACING.xs },
   phoneBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -234,21 +246,11 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.weights.medium,
     marginLeft: SPACING.xs,
   },
-  menuCard: {
-    padding: 0,
-    marginBottom: SPACING.md,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.md,
-  },
-  menuLabel: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.sizes.md,
-    color: COLORS.text.primary,
-    marginLeft: SPACING.md,
-  },
+
+  menuCard: { padding: 0, marginBottom: SPACING.md },
+  menuItem: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md },
+  menuLabel: { flex: 1, fontSize: TYPOGRAPHY.sizes.md, color: COLORS.text.primary, marginLeft: SPACING.md },
+
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -266,11 +268,8 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     marginLeft: SPACING.sm,
   },
-  version: {
-    fontSize: TYPOGRAPHY.sizes.xs,
-    color: COLORS.text.disabled,
-    textAlign: 'center',
-  },
+
+  version: { fontSize: TYPOGRAPHY.sizes.xs, color: COLORS.text.disabled, textAlign: 'center' },
 });
 
 export default ProfileScreen;

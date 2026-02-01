@@ -15,6 +15,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 export const MainNavigator: React.FC = () => {
   return (
     <Tab.Navigator
+      id="MainTabs" // ✅ Optionnel mais utile
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,

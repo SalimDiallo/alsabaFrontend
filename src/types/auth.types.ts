@@ -10,12 +10,12 @@ export interface User {
     country_code: string;
     phone_verified: boolean;
     phone_verified_at?: string;
-    
+
     // Infos personnelles
     first_name?: string;
     last_name?: string;
     email?: string;
-    
+
     // KYC
     kyc_status: 'unverified' | 'pending' | 'approved' | 'rejected';
     kyc_verified_at?: string;
@@ -24,7 +24,7 @@ export interface User {
     kyc_document_type?: string;
     kyc_date_of_birth?: string;
     kyc_nationality?: string;
-    
+
     // Métadonnées
     carrier?: string;
     is_disposable?: boolean;
@@ -32,7 +32,7 @@ export interface User {
     date_joined: string;
     last_login?: string;
     is_active: boolean;
-    
+
     // Alias pour compatibilité
     is_verified?: boolean;  // Alias pour phone_verified
     currency?: 'MAD' | 'GNF';
@@ -45,8 +45,10 @@ export interface AuthState {
     token: string | null;
     refreshToken: string | null;
     isAuthenticated: boolean;
-    isLoading: boolean;
+    isLoading: boolean;        // pour actions courantes (profil, etc.)
+    isBootstrapping?: boolean; // pour l'initialisation au démarrage
 }
+
 
 // =====================================================
 // Requests
@@ -168,7 +170,7 @@ export interface ApiErrorResponse {
 // Legacy types (pour compatibilité)
 // =====================================================
 
-export interface LoginRequest extends PhoneAuthRequest {}
+export interface LoginRequest extends PhoneAuthRequest { }
 export interface RegisterRequest extends PhoneAuthRequest {
     first_name?: string;
     last_name?: string;

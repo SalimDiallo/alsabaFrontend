@@ -1,5 +1,4 @@
-// src/screens/wallet/FundWalletScreen.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types/navigation.types';
@@ -10,38 +9,46 @@ import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-import { mockWallet } from '@/utils/mockData';
 import { formatCurrency } from '@/utils/formatters';
+import { useMockDb } from '@/store/useMockDb';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FundWallet'>;
 
 const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
+  const wallet = useMockDb((s) => s.wallet);
+  const fundWallet = useMockDb((s) => s.fundWallet);
+
   const [amount, setAmount] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<'CARD' | 'MOBILE_MONEY' | 'BANK_TRANSFER'>('CARD');
 
-  const paymentMethods = [
-    { id: 'CARD', label: 'Carte Bancaire', icon: 'card-outline' },
-    { id: 'MOBILE_MONEY', label: 'Mobile Money', icon: 'phone-portrait-outline' },
-    { id: 'BANK_TRANSFER', label: 'Virement Bancaire', icon: 'business-outline' },
-  ];
+  const paymentMethods = useMemo(() => ([
+    { id: 'CARD' as const, label: 'Carte Bancaire', icon: 'card-outline' },
+    { id: 'MOBILE_MONEY' as const, label: 'Mobile Money', icon: 'phone-portrait-outline' },
+    { id: 'BANK_TRANSFER' as const, label: 'Virement Bancaire', icon: 'business-outline' },
+  ]), []);
+
+  const parsedAmount = useMemo(() => Number(amount.replace(',', '.')), [amount]);
 
   const handleFund = () => {
-    if (!amount || parseFloat(amount) <= 0) {
+    if (!parsedAmount || parsedAmount <= 0) {
       Alert.alert('Erreur', 'Veuillez entrer un montant valide');
       return;
     }
 
     Alert.alert(
       'Confirmation',
-      `Alimenter votre wallet de ${formatCurrency(parseFloat(amount), mockWallet.currency)} via ${
-        paymentMethods.find(m => m.id === selectedMethod)?.label
+      `Alimenter votre wallet de ${formatCurrency(parsedAmount, wallet.currency)} via ${
+        paymentMethods.find((m) => m.id === selectedMethod)?.label
       } ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Confirmer',
-          onPress: () => {
-            Alert.alert('Succès', 'Votre wallet a été alimenté avec succès !');
+          onPress: async () => {
+            // Simule UX
+            await new Promise((r) => setTimeout(r, 350));
+            fundWallet(parsedAmount, selectedMethod);
+            Alert.alert('Succès', 'Votre wallet a été alimenté avec succès ! (mock)');
             navigation.goBack();
           },
         },
@@ -63,8 +70,9 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
         {/* Solde actuel */}
         <Card style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Solde Actuel</Text>
-          <Text style={styles.balanceAmount}>
-            {formatCurrency(mockWallet.balance, mockWallet.currency)}
+          <Text style={styles.balanceAmount}>{formatCurrency(wallet.balance, wallet.currency)}</Text>
+          <Text style={styles.subBalance}>
+            Disponible: {formatCurrency(wallet.availableBalance, wallet.currency)} • En attente: {formatCurrency(wallet.pendingBalance, wallet.currency)}
           </Text>
         </Card>
 
@@ -76,7 +84,7 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
             onChangeText={setAmount}
             keyboardType="numeric"
             placeholder="0.00"
-            leftIcon={<Text style={styles.currencySymbol}>{mockWallet.currency}</Text>}
+            leftIcon={<Text style={styles.currencySymbol}>{wallet.currency}</Text>}
           />
 
           {/* Montants rapides */}
@@ -100,7 +108,7 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
           {paymentMethods.map((method) => (
             <Card
               key={method.id}
-              onPress={() => setSelectedMethod(method.id as any)}
+              onPress={() => setSelectedMethod(method.id)}
               style={[
                 styles.methodCard,
                 selectedMethod === method.id && styles.methodCardActive,
@@ -140,10 +148,8 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-    padding: SPACING.md,
-  },
+  content: { flex: 1, padding: SPACING.md },
+
   balanceCard: {
     alignItems: 'center',
     padding: SPACING.lg,
@@ -161,9 +167,14 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.weights.bold,
     color: COLORS.text.white,
   },
-  section: {
-    marginBottom: SPACING.xl,
+  subBalance: {
+    marginTop: SPACING.xs,
+    fontSize: TYPOGRAPHY.sizes.xs,
+    color: COLORS.text.white,
+    opacity: 0.85,
   },
+
+  section: { marginBottom: SPACING.xl },
   sectionTitle: {
     fontSize: TYPOGRAPHY.sizes.md,
     fontWeight: TYPOGRAPHY.weights.semibold,
@@ -175,14 +186,9 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.weights.semibold,
     color: COLORS.text.primary,
   },
-  quickAmounts: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginTop: SPACING.md,
-  },
-  quickButton: {
-    flex: 1,
-  },
+  quickAmounts: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
+  quickButton: { flex: 1 },
+
   methodCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,13 +207,9 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     marginLeft: SPACING.md,
   },
-  methodLabelActive: {
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.weights.semibold,
-  },
-  submitButton: {
-    marginTop: 'auto',
-  },
+  methodLabelActive: { color: COLORS.primary, fontWeight: TYPOGRAPHY.weights.semibold },
+
+  submitButton: { marginTop: 'auto' },
 });
 
 export default FundWalletScreen;
