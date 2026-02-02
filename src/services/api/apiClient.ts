@@ -1,134 +1,101 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
-import { API_CONFIG } from '@/constants/config';
-import { getToken } from '@/services/storage/asyncStorage';
+import axios, { AxiosError, AxiosInstance } from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ENV } from '@/config/env';
 
-export interface ApiError {
-    message: string;
-    code?: string;
-    status?: number;
+const ACCESS_TOKEN_KEY = '@alsax_access_token';
+const REFRESH_TOKEN_KEY = '@alsax_refresh_token';
+
+export const apiClient: AxiosInstance = axios.create({
+    baseURL: ENV.API_BASE_URL,
+    timeout: 30000,
+});
+
+apiClient.interceptors.request.use(async (config) => {
+    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+    if (token) {
+        config.headers = config.headers ?? {};
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    config.headers = config.headers ?? {};
+    config.headers.Accept = 'application/json';
+    return config;
+});
+
+// --- Refresh handling (simple + safe) ---
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (t: string) => void; reject: (e: any) => void }> = [];
+
+const processQueue = (error: any, token: string | null) => {
+    failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)));
+    failedQueue = [];
+};
+
+async function refreshAccessToken() {
+    const refresh = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refresh) throw new Error('No refresh token');
+
+    const res = await axios.post(
+        `${ENV.API_BASE_URL}/api/accounts/auth/refresh/`,
+        { refresh },
+        { timeout: 30000, headers: { 'Content-Type': 'application/json' } }
+    );
+
+    const newAccess = res.data?.access ?? res.data?.access_token ?? res.data?.token;
+    const newRefresh = res.data?.refresh;
+
+    if (!newAccess) throw new Error('Invalid refresh response');
+
+    await AsyncStorage.setItem(ACCESS_TOKEN_KEY, newAccess);
+    if (newRefresh) await AsyncStorage.setItem(REFRESH_TOKEN_KEY, newRefresh);
+
+    return newAccess as string;
 }
 
-class ApiClient {
-    private client: AxiosInstance;
+apiClient.interceptors.response.use(
+    (r) => r,
+    async (error: AxiosError<any>) => {
+        const originalRequest: any = error.config;
 
-    constructor() {
-        this.client = axios.create({
-            baseURL: API_CONFIG.BASE_URL,
-            timeout: API_CONFIG.TIMEOUT,
-            headers: API_CONFIG.HEADERS,
-        });
-
-        this.setupInterceptors();
-    }
-
-    private setupInterceptors() {
-        // Request interceptor
-        this.client.interceptors.request.use(
-            async (config) => {
-                const token = await getToken();
-                if (token) {
-                    config.headers.Authorization = `Bearer ${token}`;
-                }
-                return config;
-            },
-            (error) => {
-                return Promise.reject(this.handleError(error));
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            if (isRefreshing) {
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({
+                        resolve: (token) => {
+                            originalRequest.headers.Authorization = `Bearer ${token}`;
+                            resolve(apiClient(originalRequest));
+                        },
+                        reject,
+                    });
+                });
             }
-        );
 
-        // Response interceptor
-        this.client.interceptors.response.use(
-            (response) => response,
-            (error) => {
-                return Promise.reject(this.handleError(error));
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            try {
+                const newToken = await refreshAccessToken();
+                processQueue(null, newToken);
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                return apiClient(originalRequest);
+            } catch (e) {
+                processQueue(e, null);
+                // Optionnel : clear storage + redirect auth
+                return Promise.reject(e);
+            } finally {
+                isRefreshing = false;
             }
-        );
-    }
-
-    private handleError(error: AxiosError): ApiError {
-        // Log en dev pour debug
-        if (__DEV__) {
-            console.log('🔴 API Error:', {
-                url: error.config?.url,
-                method: error.config?.method,
-                status: error.response?.status,
-                data: error.response?.data,
-                message: error.message,
-            });
         }
 
-        if (error.response) {
-            // Erreur de réponse du serveur
-            const data = error.response.data as any;
-            
-            // Django peut retourner: error, detail, message, ou des erreurs de champs
-            let message = 'Une erreur est survenue';
-            
-            if (data?.error) {
-                message = data.error;
-            } else if (data?.detail) {
-                message = data.detail;
-            } else if (data?.message) {
-                message = data.message;
-            } else if (data?.phone_number) {
-                // Erreur de validation Django sur un champ
-                message = Array.isArray(data.phone_number) 
-                    ? data.phone_number[0] 
-                    : data.phone_number;
-            } else if (data?.country_code) {
-                message = Array.isArray(data.country_code) 
-                    ? data.country_code[0] 
-                    : data.country_code;
-            } else if (data?.non_field_errors) {
-                message = Array.isArray(data.non_field_errors) 
-                    ? data.non_field_errors[0] 
-                    : data.non_field_errors;
-            }
-
-            return {
-                message,
-                code: data?.code || String(error.response.status),
-                status: error.response.status,
-            };
-        } else if (error.request) {
-            // Pas de réponse reçue - problème réseau
-            return {
-                message: 'Impossible de contacter le serveur. Vérifiez votre connexion.',
-                code: 'NETWORK_ERROR',
-            };
-        } else {
-            // Erreur de configuration
-            return {
-                message: error.message || 'Une erreur est survenue',
-                code: 'REQUEST_ERROR',
-            };
-        }
+        return Promise.reject(error);
     }
+);
 
-    async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.get<T>(url, config);
-        return response.data;
-    }
-
-    async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.post<T>(url, data, config);
-        return response.data;
-    }
-
-    async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.put<T>(url, data, config);
-        return response.data;
-    }
-
-    async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.patch<T>(url, data, config);
-        return response.data;
-    }
-
-    async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.delete<T>(url, config);
-        return response.data;
-    }
+export async function saveTokens(access: string, refresh: string) {
+    await AsyncStorage.setItem(ACCESS_TOKEN_KEY, access);
+    await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refresh);
 }
 
-export const apiClient = new ApiClient();
+export async function clearTokens() {
+    await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
+    await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+}

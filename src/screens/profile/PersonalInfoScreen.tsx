@@ -1,149 +1,197 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '@/types/navigation.types';
+
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/common/Card';
-import { Divider } from '@/components/common/Divider';
 import { Icon } from '@/components/common/Icon';
 import { Button } from '@/components/common/Button';
+
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
+import { useAuthStore } from '@/store/useAuthStore';
+import { formatPhoneNumber } from '@/utils/formatters';
 
-import { useProfileMock, KycDocumentType } from '@/store/useProfileMock';
+type Props = NativeStackScreenProps<RootStackParamList, 'PersonalInfo'>;
 
-const chipColor = (status: string) => {
-  if (status === 'approved') return { bg: '#E8F5E9', fg: COLORS.success };
-  if (status === 'pending') return { bg: '#FFF8E1', fg: '#B26A00' };
-  if (status === 'rejected') return { bg: '#FDECEA', fg: COLORS.error };
-  return { bg: COLORS.surface, fg: COLORS.text.secondary };
+const kycLabel = (status?: string) => {
+  if (status === 'approved') return { text: 'Identité vérifiée', color: COLORS.success };
+  if (status === 'pending') return { text: 'Vérification en cours', color: COLORS.warning };
+  if (status === 'rejected') return { text: 'Vérification rejetée', color: COLORS.error };
+  return { text: 'Non vérifié', color: COLORS.text.secondary };
 };
 
-const prettyStatus = (status: string) => {
-  if (status === 'approved') return 'Vérifié';
-  if (status === 'pending') return 'En cours';
-  if (status === 'rejected') return 'Refusé';
-  return 'Non vérifié';
-};
+type Currency = 'MAD' | 'GNF';
 
-const PersonalInfoScreen = () => {
-  const profile = useProfileMock((s) => s.profile);
-  const updateProfile = useProfileMock((s) => s.updateProfile);
-  const setAvatar = useProfileMock((s) => s.setAvatar);
-  const submitKyc = useProfileMock((s) => s.submitKyc);
-  const setKycStatus = useProfileMock((s) => s.setKycStatus);
+const PersonalInfoScreen: React.FC<Props> = ({ navigation }) => {
+  const user = useAuthStore((s) => s.user);
+  const updateUser = useAuthStore((s) => s.updateUser);
 
-  // Local form state (édition)
-  const [firstName, setFirstName] = useState(profile.first_name ?? '');
-  const [lastName, setLastName] = useState(profile.last_name ?? '');
-  const [email, setEmail] = useState(profile.email ?? '');
-  const [nationality, setNationality] = useState(profile.kyc_nationality ?? '');
-  const [dob, setDob] = useState(profile.kyc_date_of_birth ?? '');
-  const [docType, setDocType] = useState<KycDocumentType>((profile.kyc_document_type ?? 'id_card') as KycDocumentType);
+  // ---- Champs existants
+  const [firstName, setFirstName] = useState(user?.first_name ?? '');
+  const [lastName, setLastName] = useState(user?.last_name ?? '');
+  const [email, setEmail] = useState(user?.email ?? '');
+
+  // ---- Nouveaux champs (mock)
+  const [photoUri, setPhotoUri] = useState<string | null>(
+    // @ts-ignore (si pas dans ton type User)
+    (user as any)?.photoUri ?? null
+  );
+  const [address, setAddress] = useState<string>(
+    // @ts-ignore
+    (user as any)?.address ?? ''
+  );
+  const [city, setCity] = useState<string>(
+    // @ts-ignore
+    (user as any)?.city ?? ''
+  );
+  const [country, setCountry] = useState<string>(
+    // @ts-ignore
+    (user as any)?.country ?? 'Maroc'
+  );
+
+  // Date de naissance (format: YYYY-MM-DD)
+  const [dob, setDob] = useState<string>(
+    // @ts-ignore
+    (user as any)?.date_of_birth ?? ''
+  );
+
+  // Devise préférée
+  const [currency, setCurrency] = useState<Currency>(
+    // @ts-ignore
+    ((user as any)?.currency as Currency) ?? 'MAD'
+  );
+
+  const phone = user?.phone_number ?? '';
+  const countryCode = user?.country_code ?? '+212';
 
   const initials = useMemo(() => {
     const a = (firstName?.[0] ?? '').toUpperCase();
     const b = (lastName?.[0] ?? '').toUpperCase();
-    return `${a}${b}` || 'U';
+    return (a + b) || 'U';
   }, [firstName, lastName]);
 
-  const statusColors = chipColor(profile.kyc_status);
+  const kyc = kycLabel(user?.kyc_status);
 
-  const onSaveProfile = () => {
-    updateProfile({
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      email: email.trim(),
-    });
-    Alert.alert('Succès', 'Informations enregistrées (mock).');
-  };
+  const goToKyc = () => navigation.navigate('KYCFlow', { screen: 'KycDocument' });
 
-  const onChangePhoto = () => {
-    // Mock: on alterne photo "set" / "remove"
-    Alert.alert('Photo de profil (mock)', 'Simuler une photo ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: profile.avatarUri ? 'Retirer' : 'Simuler',
-        style: profile.avatarUri ? 'destructive' : 'default',
-        onPress: () => {
-          if (profile.avatarUri) {
-            setAvatar(null);
-          } else {
-            // Une URI fictive. Tu peux mettre une image locale si tu veux.
-            setAvatar('https://picsum.photos/200');
-          }
+  const mockPickPhoto = () => {
+    // Placeholder : plus tard tu branches ImagePicker
+    Alert.alert(
+      'Photo de profil',
+      'Simulation : on ajoute une photo fictive',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Ajouter',
+          onPress: () => {
+            setPhotoUri('mock://profile-photo');
+            Alert.alert('OK', 'Photo ajoutée (mock)');
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
-  const onSubmitKyc = () => {
-    if (!nationality.trim() || !dob.trim()) {
-      Alert.alert('Erreur', 'Nationalité et date de naissance sont requis.');
+  const validateDob = (value: string) => {
+    // accepte vide, sinon YYYY-MM-DD basique
+    if (!value) return true;
+    const ok = /^\d{4}-\d{2}-\d{2}$/.test(value);
+    if (!ok) return false;
+
+    const [y, m, d] = value.split('-').map((x) => parseInt(x, 10));
+    if (m < 1 || m > 12) return false;
+    if (d < 1 || d > 31) return false;
+    if (y < 1900 || y > new Date().getFullYear()) return false;
+    return true;
+  };
+
+  const onSave = async () => {
+    if (!validateDob(dob.trim())) {
+      Alert.alert('Erreur', 'Date de naissance invalide. Format attendu : YYYY-MM-DD');
       return;
     }
 
-    // Très simple: on attend YYYY-MM-DD
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob.trim())) {
-      Alert.alert('Erreur', 'Format date attendu : YYYY-MM-DD');
-      return;
+    try {
+      await updateUser({
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim(),
+
+        // champs mock (ok même si pas dans le type)
+        // @ts-ignore
+        photoUri,
+        // @ts-ignore
+        address: address.trim(),
+        // @ts-ignore
+        city: city.trim(),
+        // @ts-ignore
+        country: country.trim(),
+        // @ts-ignore
+        date_of_birth: dob.trim(),
+        // @ts-ignore
+        currency,
+      } as any);
+
+      Alert.alert('Succès', 'Informations mises à jour (mock)');
+      navigation.goBack();
+    } catch {
+      Alert.alert('Erreur', 'Impossible de sauvegarder');
     }
-
-    submitKyc({
-      documentType: docType,
-      dateOfBirth: dob.trim(),
-      nationality: nationality.trim(),
-    });
-
-    Alert.alert('KYC envoyé', 'Votre demande KYC est en cours (mock).');
-  };
-
-  const debugKyc = () => {
-    // Pour tester ton UI sans backend
-    Alert.alert('Debug KYC (mock)', 'Changer le statut :', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Unverified', onPress: () => setKycStatus('unverified') },
-      { text: 'Pending', onPress: () => setKycStatus('pending') },
-      { text: 'Approved', onPress: () => setKycStatus('approved') },
-      { text: 'Rejected', onPress: () => setKycStatus('rejected') },
-    ]);
   };
 
   return (
     <Screen padding={false} scrollable>
-      <Header title="Informations personnelles" />
+      <Header
+        title="Informations personnelles"
+        leftAction={{
+          icon: <Icon name="arrow-back" size={24} color={COLORS.text.primary} />,
+          onPress: () => navigation.goBack(),
+        }}
+      />
 
       <View style={styles.content}>
-        {/* Avatar */}
-        <Card style={styles.avatarCard}>
-          <TouchableOpacity style={styles.avatarWrap} onPress={onChangePhoto} activeOpacity={0.8}>
-            {profile.avatarUri ? (
-              <Image source={{ uri: profile.avatarUri }} style={styles.avatarImg} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            )}
-            <View style={styles.cameraBadge}>
-              <Icon name="camera-outline" size={16} color={COLORS.text.white} />
+        {/* Avatar + statut */}
+        <Card style={styles.topCard}>
+          <View style={styles.avatarRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
-          </TouchableOpacity>
 
-          <Text style={styles.bigName}>
-            {(firstName || 'Utilisateur') + (lastName ? ` ${lastName}` : '')}
-          </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.nameLine}>
+                {firstName || 'Utilisateur'} {lastName || ''}
+              </Text>
 
-          <View style={[styles.statusChip, { backgroundColor: statusColors.bg }]}>
-            <Text style={[styles.statusChipText, { color: statusColors.fg }]}>
-              KYC : {prettyStatus(profile.kyc_status)}
-            </Text>
+              <Text style={styles.phoneLine}>
+                {phone ? formatPhoneNumber(phone, countryCode) : 'Téléphone non renseigné'}
+              </Text>
+
+              <View style={[styles.kycBadge, { borderColor: kyc.color }]}>
+                <Icon name="shield-checkmark-outline" size={16} color={kyc.color} />
+                <Text style={[styles.kycText, { color: kyc.color }]}>{kyc.text}</Text>
+              </View>
+            </View>
+
+            {/* Photo (mock) */}
+            <TouchableOpacity style={styles.photoBtn} onPress={mockPickPhoto} activeOpacity={0.7}>
+              <Icon name={photoUri ? 'checkmark-circle' : 'camera-outline'} size={20} color={COLORS.text.primary} />
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity onPress={debugKyc} style={styles.debugBtn}>
-            <Text style={styles.debugText}>Changer statut (mock)</Text>
-          </TouchableOpacity>
+          {user?.kyc_status !== 'approved' && (
+            <Button
+              title="Vérifier mon identité"
+              onPress={goToKyc}
+              fullWidth
+              style={{ marginTop: SPACING.md }}
+            />
+          )}
         </Card>
 
-        {/* Infos de base */}
-        <Card style={styles.card}>
+        {/* Profil */}
+        <Card style={styles.formCard}>
           <Text style={styles.sectionTitle}>Profil</Text>
 
           <Text style={styles.label}>Prénom</Text>
@@ -169,113 +217,87 @@ const PersonalInfoScreen = () => {
             style={styles.input}
             value={email}
             onChangeText={setEmail}
-            placeholder="email@exemple.com"
+            placeholder="ex: nom@gmail.com"
+            placeholderTextColor={COLORS.text.disabled}
             keyboardType="email-address"
             autoCapitalize="none"
-            placeholderTextColor={COLORS.text.disabled}
-          />
-
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Code pays</Text>
-              <View style={[styles.readOnlyBox]}>
-                <Text style={styles.readOnlyText}>{profile.country_code}</Text>
-              </View>
-            </View>
-            <View style={{ width: SPACING.md }} />
-            <View style={{ flex: 2 }}>
-              <Text style={styles.label}>Téléphone</Text>
-              <View style={[styles.readOnlyBox]}>
-                <Text style={styles.readOnlyText}>{profile.phone_number}</Text>
-              </View>
-            </View>
-          </View>
-
-          <Button
-            title="Enregistrer"
-            onPress={onSaveProfile}
-            fullWidth
-            size="large"
-            style={{ marginTop: SPACING.lg }}
           />
         </Card>
 
-        {/* KYC */}
-        <Card style={styles.card}>
-          <View style={styles.kycHeader}>
-            <Text style={styles.sectionTitle}>Vérification (KYC)</Text>
-            <Icon name="shield-checkmark-outline" size={20} color={COLORS.text.secondary} />
-          </View>
+        {/* Adresse */}
+        <Card style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Adresse</Text>
 
-          <Text style={styles.kycHint}>
-            Mode fictif : remplis ces champs pour tester le parcours. Plus tard, tu brancheras l’API.
-          </Text>
+          <Text style={styles.label}>Adresse</Text>
+          <TextInput
+            style={styles.input}
+            value={address}
+            onChangeText={setAddress}
+            placeholder="Rue, numéro, quartier…"
+            placeholderTextColor={COLORS.text.disabled}
+          />
 
-          <Divider />
+          <Text style={styles.label}>Ville</Text>
+          <TextInput
+            style={styles.input}
+            value={city}
+            onChangeText={setCity}
+            placeholder="ex: Casablanca"
+            placeholderTextColor={COLORS.text.disabled}
+          />
 
-          <Text style={styles.label}>Type de document</Text>
-          <View style={styles.docRow}>
-            {[
-              { id: 'id_card', label: 'Carte ID' },
-              { id: 'passport', label: 'Passeport' },
-              { id: 'driver_license', label: 'Permis' },
-            ].map((d) => {
-              const active = docType === d.id;
+          <Text style={styles.label}>Pays</Text>
+          <TextInput
+            style={styles.input}
+            value={country}
+            onChangeText={setCountry}
+            placeholder="ex: Maroc"
+            placeholderTextColor={COLORS.text.disabled}
+          />
+        </Card>
+
+        {/* KYC - infos utiles */}
+        <Card style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Informations KYC</Text>
+
+          <Text style={styles.label}>Date de naissance</Text>
+          <TextInput
+            style={styles.input}
+            value={dob}
+            onChangeText={setDob}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={COLORS.text.disabled}
+          />
+
+          <Text style={styles.label}>Devise préférée</Text>
+          <View style={styles.currencyRow}>
+            {(['MAD', 'GNF'] as const).map((c) => {
+              const active = currency === c;
               return (
                 <TouchableOpacity
-                  key={d.id}
-                  onPress={() => setDocType(d.id as KycDocumentType)}
+                  key={c}
+                  style={[styles.currencyPill, active && styles.currencyPillActive]}
+                  onPress={() => setCurrency(c)}
                   activeOpacity={0.8}
-                  style={[
-                    styles.docChip,
-                    active && { borderColor: COLORS.primary, backgroundColor: `${COLORS.primary}10` },
-                  ]}
                 >
-                  <Text style={[styles.docChipText, active && { color: COLORS.primary }]}>
-                    {d.label}
-                  </Text>
+                  <Text style={[styles.currencyText, active && styles.currencyTextActive]}>{c}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          <Text style={styles.label}>Date de naissance (YYYY-MM-DD)</Text>
-          <TextInput
-            style={styles.input}
-            value={dob}
-            onChangeText={setDob}
-            placeholder="1999-01-30"
-            placeholderTextColor={COLORS.text.disabled}
-          />
+          <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.8}>
+            <Text style={styles.saveText}>Enregistrer</Text>
+          </TouchableOpacity>
+        </Card>
 
-          <Text style={styles.label}>Nationalité</Text>
-          <TextInput
-            style={styles.input}
-            value={nationality}
-            onChangeText={setNationality}
-            placeholder="Marocaine / Guinéenne / …"
-            placeholderTextColor={COLORS.text.disabled}
-          />
-
-          <View style={styles.kycMeta}>
-            <Text style={styles.metaLine}>
-              Soumis : {profile.kyc_submitted_at ? profile.kyc_submitted_at.slice(0, 10) : '—'}
-            </Text>
-            <Text style={styles.metaLine}>
-              Vérifié : {profile.kyc_verified_at ? profile.kyc_verified_at.slice(0, 10) : '—'}
-            </Text>
-            <Text style={styles.metaLine}>
-              Tentatives : {profile.kyc_retry_count ?? 0}
-            </Text>
-          </View>
-
-          <Button
-            title={profile.kyc_status === 'rejected' ? 'Re-soumettre KYC' : 'Soumettre KYC'}
-            onPress={onSubmitKyc}
-            fullWidth
-            size="large"
-            style={{ marginTop: SPACING.md }}
-          />
+        {/* Note */}
+        <Card style={styles.noteCard}>
+          <Text style={styles.noteTitle}>Note</Text>
+          <Text style={styles.noteText}>
+            Ces champs sont en mode fictif. Quand le backend sera branché, on enverra ces infos via
+            PATCH /api/accounts/profile/ et on lancera le flow KYC via /api/accounts/kyc/verify/.
+          </Text>
         </Card>
       </View>
     </Screen>
@@ -285,69 +307,66 @@ const PersonalInfoScreen = () => {
 const styles = StyleSheet.create({
   content: { padding: SPACING.md },
 
-  avatarCard: {
-    padding: SPACING.lg,
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
+  topCard: { padding: SPACING.md, marginBottom: SPACING.md },
+  avatarRow: { flexDirection: 'row', alignItems: 'center' },
 
-  avatarWrap: { position: 'relative' },
-  avatarImg: { width: 88, height: 88, borderRadius: 44 },
-  avatarFallback: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: SPACING.md,
   },
-  avatarText: { color: COLORS.text.white, fontSize: TYPOGRAPHY.sizes.xxl, fontWeight: TYPOGRAPHY.weights.bold },
-  cameraBadge: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.text.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.card,
-  },
-
-  bigName: {
-    marginTop: SPACING.md,
+  avatarText: {
+    color: COLORS.text.white,
     fontSize: TYPOGRAPHY.sizes.xl,
     fontWeight: TYPOGRAPHY.weights.bold,
+  },
+
+  nameLine: {
     color: COLORS.text.primary,
-  },
-
-  statusChip: {
-    marginTop: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: 999,
-  },
-  statusChipText: {
-    fontSize: TYPOGRAPHY.sizes.xs,
-    fontWeight: TYPOGRAPHY.weights.semibold,
-  },
-
-  debugBtn: { marginTop: SPACING.sm },
-  debugText: { color: COLORS.text.secondary, fontSize: TYPOGRAPHY.sizes.xs, textDecorationLine: 'underline' },
-
-  card: { padding: SPACING.md, marginBottom: SPACING.md },
-
-  sectionTitle: {
     fontSize: TYPOGRAPHY.sizes.lg,
+    fontWeight: TYPOGRAPHY.weights.bold,
+  },
+  phoneLine: { color: COLORS.text.secondary, marginTop: 2 },
+
+  kycBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: SPACING.xs,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.full,
+    marginTop: SPACING.sm,
+    backgroundColor: COLORS.surface,
+  },
+  kycText: { fontSize: TYPOGRAPHY.sizes.xs, fontWeight: TYPOGRAPHY.weights.medium },
+
+  photoBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  formCard: { padding: SPACING.md, marginBottom: SPACING.md },
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.sizes.md,
     fontWeight: TYPOGRAPHY.weights.semibold,
-    color: COLORS.text.primary,
     marginBottom: SPACING.sm,
+    color: COLORS.text.primary,
   },
 
   label: { color: COLORS.text.secondary, marginTop: SPACING.sm, marginBottom: SPACING.xs },
-
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -357,36 +376,39 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
   },
 
-  row: { flexDirection: 'row', alignItems: 'flex-end', marginTop: SPACING.sm },
-
-  readOnlyBox: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-  },
-  readOnlyText: { color: COLORS.text.primary, fontWeight: TYPOGRAPHY.weights.medium },
-
-  kycHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-
-  kycHint: { color: COLORS.text.secondary, fontSize: TYPOGRAPHY.sizes.sm, marginBottom: SPACING.md },
-
-  docRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm },
-
-  docChip: {
+  currencyRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
+  currencyPill: {
     flex: 1,
-    paddingVertical: SPACING.sm,
-    borderRadius: 999,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.card,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
     alignItems: 'center',
   },
-  docChipText: { color: COLORS.text.primary, fontSize: TYPOGRAPHY.sizes.xs, fontWeight: TYPOGRAPHY.weights.semibold },
+  currencyPillActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: `${COLORS.primary}10`,
+  },
+  currencyText: { color: COLORS.text.primary, fontWeight: TYPOGRAPHY.weights.medium },
+  currencyTextActive: { color: COLORS.primary, fontWeight: TYPOGRAPHY.weights.semibold },
 
-  kycMeta: { marginTop: SPACING.md },
-  metaLine: { color: COLORS.text.secondary, fontSize: TYPOGRAPHY.sizes.xs, marginTop: 4 },
+  saveBtn: {
+    marginTop: SPACING.lg,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  saveText: { color: COLORS.text.white, fontWeight: TYPOGRAPHY.weights.semibold },
+
+  noteCard: { padding: SPACING.md },
+  noteTitle: {
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    marginBottom: SPACING.xs,
+    color: COLORS.text.primary,
+  },
+  noteText: { color: COLORS.text.secondary, lineHeight: 20 },
 });
 
 export default PersonalInfoScreen;

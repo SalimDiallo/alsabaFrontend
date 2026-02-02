@@ -10,40 +10,33 @@ import { SearchBar } from '@/components/common/SearchBar';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Icon } from '@/components/common/Icon';
 import { COLORS, SPACING, TYPOGRAPHY } from '@/constants/colors';
-
 import { useMockDb } from '@/store/useMockDb';
 
 const OffersListScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   const offers = useMockDb((s) => s.offers);
   const acceptOffer = useMockDb((s) => s.acceptOffer);
 
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredOffers = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return offers;
-
-    return offers.filter((o) => o.userName.toLowerCase().includes(q));
+    const q = searchQuery.toLowerCase().trim();
+    return offers.filter((offer) => offer.userName.toLowerCase().includes(q));
   }, [offers, searchQuery]);
 
-  const avgRate = useMemo(() => {
-    if (offers.length === 0) return 0;
-    const sum = offers.reduce((acc, o) => acc + (Number(o.exchangeRate) || 0), 0);
-    return Math.round(sum / offers.length);
-  }, [offers]);
-
   const handleAcceptOffer = (offerId: string) => {
-    Alert.alert('Confirmer', "Accepter cette offre ? (mock)", [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Accepter',
-        onPress: () => {
-          acceptOffer(offerId);
-          Alert.alert('Succès', 'Offre acceptée (mock). Une transaction a été ajoutée.');
+    Alert.alert(
+      "Accepter l'offre",
+      "Confirmer l'acceptation (mock) ?",
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: () => acceptOffer(offerId),
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleCreateOffer = () => navigation.navigate('CreateOffer');
@@ -70,12 +63,12 @@ const OffersListScreen = () => {
 
         <View style={styles.stats}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{offers.filter(o => o.status === 'ACTIVE').length}</Text>
-            <Text style={styles.statLabel}>Offres actives</Text>
+            <Text style={styles.statValue}>{offers.length}</Text>
+            <Text style={styles.statLabel}>Offres</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{avgRate ? avgRate.toLocaleString() : '—'}</Text>
+            <Text style={styles.statValue}>1,050</Text>
             <Text style={styles.statLabel}>Taux moyen</Text>
           </View>
         </View>
@@ -84,7 +77,7 @@ const OffersListScreen = () => {
           <EmptyState
             icon="file-tray-outline"
             title="Aucune offre trouvée"
-            message={offers.length === 0 ? "Vous n'avez aucune offre pour l'instant." : "Aucune offre ne correspond à votre recherche"}
+            message="Il n'y a pas d'offres correspondant à votre recherche"
             actionLabel="Créer une offre"
             onAction={handleCreateOffer}
           />
@@ -93,11 +86,7 @@ const OffersListScreen = () => {
             data={filteredOffers}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <OfferCard
-                offer={item}
-                onAccept={handleAcceptOffer}
-                showAcceptButton
-              />
+              <OfferCard offer={item} onAccept={handleAcceptOffer} showAcceptButton />
             )}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
@@ -111,7 +100,6 @@ const OffersListScreen = () => {
 const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: SPACING.md },
   searchContainer: { paddingVertical: SPACING.md },
-
   stats: {
     flexDirection: 'row',
     backgroundColor: COLORS.card,
@@ -130,7 +118,6 @@ const styles = StyleSheet.create({
   },
   statLabel: { fontSize: TYPOGRAPHY.sizes.xs, color: COLORS.text.secondary },
   statDivider: { width: 1, backgroundColor: COLORS.divider, marginHorizontal: SPACING.md },
-
   list: { paddingBottom: SPACING.lg },
 });
 

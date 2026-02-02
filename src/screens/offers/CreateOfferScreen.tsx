@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/common/Card';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types/navigation.types';
 import { useMockDb } from '@/store/useMockDb';
@@ -18,32 +17,28 @@ const CreateOfferScreen: React.FC<Props> = ({ navigation }) => {
   const [rate, setRate] = useState('1050');
   const [loading, setLoading] = useState(false);
 
-  const parsedAmount = useMemo(() => Number(amount.replace(',', '.')), [amount]);
-  const parsedRate = useMemo(() => Number(rate.replace(',', '.')), [rate]);
-
   const handleCreate = async () => {
-    if (!parsedAmount || parsedAmount <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un montant valide.');
-      return;
-    }
-    if (!parsedRate || parsedRate <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un taux valide.');
+    const a = Number(amount);
+    const r = Number(rate);
+
+    if (!a || a <= 0 || !r || r <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer des valeurs valides');
       return;
     }
 
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((res) => setTimeout(res, 350));
 
-      createOffer({
-        userName: 'Moi',          // plus tard: user du store auth
-        sendAmount: parsedAmount,
+      const offer = createOffer({
+        userName: 'Moi',
+        sendAmount: a,
         sendCurrency: 'MAD',
         receiveCurrency: 'GNF',
-        exchangeRate: parsedRate,
+        exchangeRate: r,
       });
 
-      Alert.alert('Succès', `Offre publiée (mock)`);
+      Alert.alert('Succès', `Offre publiée ✅\nID: ${offer.id}`);
       navigation.goBack();
     } catch (e) {
       Alert.alert('Erreur', "Impossible de créer l'offre");
@@ -77,13 +72,13 @@ const CreateOfferScreen: React.FC<Props> = ({ navigation }) => {
             placeholderTextColor={COLORS.text.disabled}
           />
 
-          <TouchableOpacity style={[styles.btn, loading && { opacity: 0.6 }]} onPress={handleCreate} disabled={loading}>
+          <TouchableOpacity
+            style={[styles.btn, loading && { opacity: 0.6 }]}
+            onPress={handleCreate}
+            disabled={loading}
+          >
             <Text style={styles.btnText}>{loading ? 'Création…' : 'Publier'}</Text>
           </TouchableOpacity>
-
-          <Text style={styles.note}>
-            Mode fictif : l’offre s’ajoute immédiatement à la liste + une transaction est créée.
-          </Text>
         </Card>
       </View>
     </Screen>
@@ -96,7 +91,7 @@ const styles = StyleSheet.create({
   label: { color: COLORS.text.secondary, marginTop: SPACING.sm, marginBottom: SPACING.xs },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.surface,
+    borderColor: COLORS.border,
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
@@ -110,7 +105,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnText: { color: COLORS.text.white, fontWeight: TYPOGRAPHY.weights.semibold },
-  note: { marginTop: SPACING.md, color: COLORS.text.secondary, fontSize: TYPOGRAPHY.sizes.xs },
 });
 
 export default CreateOfferScreen;

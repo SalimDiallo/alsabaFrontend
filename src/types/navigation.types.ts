@@ -1,28 +1,28 @@
-// 1. Mise à jour de src/types/navigation.types.ts
-// ==========================================
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
     Auth: NavigatorScreenParams<AuthStackParamList>;
     Main: NavigatorScreenParams<MainTabParamList>;
-    // Écrans modaux/empilés
+
     FundWallet: undefined;
     CreateOffer: undefined;
+
     PersonalInfo: undefined;
     PaymentMethods: undefined;
     Settings: { title: string };
-    Content: { docId: string };
 
+    // ✅ Flow KYC (nested)
+    KYCFlow: NavigatorScreenParams<KycStackParamList>;
 };
 
 export type AuthStackParamList = {
     Login: undefined;
     OTPVerification: {
-        phoneNumber: string;       // Numéro national
-        countryCode: string;       // Code pays (+212, +224)
-        fullPhoneNumber: string;   // Format E.164 complet
-        sessionKey: string;        // Clé de session du backend
-        expiresIn: number;         // Temps avant expiration
+        phoneNumber: string;
+        countryCode: string;
+        fullPhoneNumber: string;
+        sessionKey: string;
+        expiresIn: number;
     };
 };
 
@@ -31,4 +31,16 @@ export type MainTabParamList = {
     Offers: undefined;
     Transactions: undefined;
     Profile: undefined;
+};
+
+// ✅ KYC stack : NOMS EXACTS (respecte la casse)
+export type KycStackParamList = {
+    KycDocument: undefined;
+    KycUpload: { documentType: 'id_card' | 'passport' | 'driver_license' };
+    KycConfirm: {
+        documentType: 'id_card' | 'passport' | 'driver_license';
+        frontAdded: boolean;
+        backAdded: boolean;
+        selfieAdded: boolean;
+    };
 };

@@ -166,21 +166,11 @@ export interface ApiErrorResponse {
     code?: string;
 }
 
-export interface ProfileUpdatePayload {
-    photoUri?: string;
-    address?: string;
-    city?: string;
-    country?: string;
-    date_of_birth?: string; // ISO: "1999-12-31"
-    currency?: 'MAD' | 'GNF';
-}
-
 // =====================================================
 // Legacy types (pour compatibilité)
 // =====================================================
 
 export interface LoginRequest extends PhoneAuthRequest { }
-
 export interface RegisterRequest extends PhoneAuthRequest {
     first_name?: string;
     last_name?: string;

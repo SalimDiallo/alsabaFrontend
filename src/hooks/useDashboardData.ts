@@ -3,6 +3,10 @@ import { APP_MODE } from '@/constants/app';
 import { useMockDb } from '@/store/useMockDb';
 import { useAuthStore } from '@/store/useAuthStore';
 
+// Plus tard (quand API ON)
+// import { walletService } from '@/services/api/walletService';
+// import { profileService } from '@/services/api/profileService';
+
 export const useDashboardData = () => {
     const user = useAuthStore((s) => s.user);
 
@@ -10,12 +14,30 @@ export const useDashboardData = () => {
     const transactions = useMockDb((s) => s.transactions);
 
     const [loading, setLoading] = useState(false);
-    const [error] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const refresh = async () => {
-        // mock refresh
         setLoading(true);
-        setTimeout(() => setLoading(false), 400);
+        setError(null);
+
+        try {
+            if (APP_MODE.USE_MOCK) {
+                // petite latence pour UX
+                await new Promise((r) => setTimeout(r, 400));
+                return;
+            }
+
+            // ---------------------------
+            // API MODE (plus tard)
+            // const profile = await profileService.getProfile();
+            // const wallet = await walletService.getWallet();
+            // ...
+            // ---------------------------
+        } catch (e) {
+            setError('Impossible de rafraîchir les données');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const fxRate = useMemo(() => {
@@ -26,10 +48,6 @@ export const useDashboardData = () => {
     }, []);
 
     const recentTransactions = useMemo(() => transactions.slice(0, 3), [transactions]);
-
-    if (!APP_MODE.USE_MOCK) {
-        // ici plus tard tu mets le vrai fetch API
-    }
 
     return {
         data: user

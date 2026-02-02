@@ -2,6 +2,10 @@ export const COLORS = {
     // Couleurs principales ALSAX (on garde)
     primary: '#00A86B',   // Vert ALSAX
     secondary: '#00BCD4', // Cyan ALSAX
+    //primary: '#1B2A4A', // Navy
+    //secondary: '#2ED3B7', // Mint
+    //background:'#F6F8FC',
+    //text.primary:'#0B1220'
 
     // Backgrounds / Surfaces (plus premium : pas blanc pur partout)
     background: '#F7F9FC', // fond global doux (au lieu de #FFFFFF)
