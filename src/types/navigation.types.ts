@@ -11,8 +11,10 @@ export type RootStackParamList = {
     PaymentMethods: undefined;
     Settings: { title: string };
 
-    // ✅ Flow KYC (nested)
     KYCFlow: NavigatorScreenParams<KycStackParamList>;
+
+    // ✅ Flow Offers (nested)
+    OfferFlow: NavigatorScreenParams<OfferStackParamList>;
 };
 
 export type AuthStackParamList = {
@@ -33,7 +35,6 @@ export type MainTabParamList = {
     Profile: undefined;
 };
 
-// ✅ KYC stack : NOMS EXACTS (respecte la casse)
 export type KycStackParamList = {
     KycDocument: undefined;
     KycUpload: { documentType: 'id_card' | 'passport' | 'driver_license' };
@@ -43,4 +44,11 @@ export type KycStackParamList = {
         backAdded: boolean;
         selfieAdded: boolean;
     };
+};
+
+// ✅ 3 écrans offers (comme tu veux)
+export type OfferStackParamList = {
+    OfferDetails: { offerId: string };
+    OfferAccept: { offerId: string };
+    OfferValidate: { offerId: string };
 };

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types/navigation.types';
-import { View, Text, StyleSheet, FlatList, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
 import { OfferCard } from '@/components/features/OfferCard';
@@ -13,11 +13,9 @@ import { COLORS, SPACING, TYPOGRAPHY } from '@/constants/colors';
 import { useMockDb } from '@/store/useMockDb';
 
 const OffersListScreen = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<any>(); // tab context
 
   const offers = useMockDb((s) => s.offers);
-  const acceptOffer = useMockDb((s) => s.acceptOffer);
-
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredOffers = useMemo(() => {
@@ -25,21 +23,20 @@ const OffersListScreen = () => {
     return offers.filter((offer) => offer.userName.toLowerCase().includes(q));
   }, [offers, searchQuery]);
 
-  const handleAcceptOffer = (offerId: string) => {
-    Alert.alert(
-      "Accepter l'offre",
-      "Confirmer l'acceptation (mock) ?",
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          onPress: () => acceptOffer(offerId),
-        },
-      ]
-    );
+  // ✅ helper pour naviguer vers RootStack
+  const goStack = (name: keyof RootStackParamList, params?: any) => {
+    const root = navigation.getParent?.('RootStack');
+    if (root) return root.navigate(name as any, params);
+    const parent = navigation.getParent?.();
+    if (parent) return parent.navigate(name as any, params);
+    return navigation.navigate(name as any, params);
   };
 
-  const handleCreateOffer = () => navigation.navigate('CreateOffer');
+  const openOffer = (offerId: string) => {
+    goStack('OfferFlow', { screen: 'OfferDetails', params: { offerId } });
+  };
+
+  const handleCreateOffer = () => goStack('CreateOffer');
 
   return (
     <Screen>
@@ -86,7 +83,11 @@ const OffersListScreen = () => {
             data={filteredOffers}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <OfferCard offer={item} onAccept={handleAcceptOffer} showAcceptButton />
+              <OfferCard
+                offer={item}
+                onAccept={() => openOffer(item.id)} // ✅ maintenant ça ouvre le flow
+                showAcceptButton
+              />
             )}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
