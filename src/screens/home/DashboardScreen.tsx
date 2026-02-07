@@ -26,12 +26,29 @@ const DashboardScreen = () => {
     );
   }
 
-  if (error || !data) {
+  // Gestion des cas où data est null
+  if (!data) {
     return (
       <Screen>
         <View style={[styles.container, { padding: SPACING.md }]}>
           <Text style={{ color: COLORS.error, marginBottom: SPACING.sm }}>
-            {error ?? 'Données indisponibles'}
+            Les données ne sont pas disponibles. Veuillez vérifier votre connexion ou réessayer.
+          </Text>
+          <TouchableOpacity onPress={refresh} style={styles.retryBtn}>
+            <Text style={styles.retryText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (error) {
+    console.log(error, data);
+    return (
+      <Screen>
+        <View style={[styles.container, { padding: SPACING.md }]}>
+          <Text style={{ color: COLORS.error, marginBottom: SPACING.sm }}>
+            {error}
           </Text>
           <TouchableOpacity onPress={refresh} style={styles.retryBtn}>
             <Text style={styles.retryText}>Réessayer</Text>

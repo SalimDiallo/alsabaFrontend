@@ -36,7 +36,7 @@ export const AppNavigator: React.FC = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {showMainApp ? (
+        {!showMainApp ? (
           <>
             <Stack.Screen name="Main" component={MainNavigator} />
 
