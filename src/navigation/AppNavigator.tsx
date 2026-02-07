@@ -10,6 +10,8 @@ import { MainNavigator } from './MainNavigator';
 import { KycNavigator } from './KycNavigator';
 
 import { Loader } from '@/components/common/Loader';
+import { OfferNavigator } from './OfferNavigator';
+
 
 // Modals / stacked screens
 import FundWalletScreen from '@/screens/wallet/FundWalletScreen';
@@ -55,6 +57,7 @@ export const AppNavigator: React.FC = () => {
         ) : (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         )}
+        <Stack.Screen name="OfferFlow" component={OfferNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );

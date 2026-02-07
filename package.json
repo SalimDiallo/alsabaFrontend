@@ -16,6 +16,8 @@
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
     "expo": "~54.0.30",
+    "expo-camera": "~17.0.10",
+    "expo-image-picker": "~17.0.10",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-hook-form": "^7.68.0",

@@ -1,11 +1,19 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Offer, OfferStatus } from '@/types/offer.types';
+import { Offer, OfferStatus, Currency } from '@/types/offer.types';
 
-export type Currency = 'MAD' | 'GNF';
+export type TxType =
+    | 'DEPOSIT'
+    | 'WITHDRAWAL'
+    | 'EXCHANGE'
+    | 'OFFER_CREATED'
+    | 'OFFER_ACCEPTED'
+    | 'OFFER_VALIDATED'
+    | 'OFFER_CONFIRMED'
+    | 'OFFER_CANCELLED'
+    | 'OFFER_DISPUTED';
 
-export type TxType = 'DEPOSIT' | 'WITHDRAWAL' | 'EXCHANGE' | 'OFFER_CREATED' | 'OFFER_ACCEPTED';
 export type Transaction = {
     id: string;
     type: TxType;
@@ -62,8 +70,14 @@ type MockDbState = {
         exchangeRate: number;
     }) => Offer;
 
-    acceptOffer: (offerId: string) => void;
-    closeOffer: (offerId: string) => void;
+    getOfferById: (id: string) => Offer | undefined;
+
+    acceptOffer: (offerId: string, buyerPhone: string, buyerName?: string) => void;
+    validateOffer: (offerId: string, sellerPhone: string, sellerName?: string) => void;
+    confirmOffer: (offerId: string) => void;
+
+    cancelOffer: (offerId: string, reason?: string) => void;
+    disputeOffer: (offerId: string, reason: string) => void;
 
     // Payment
     addPaymentMethod: (type: PaymentMethodType) => PaymentMethod;
@@ -81,8 +95,12 @@ const initialState: Omit<
     MockDbState,
     | 'fundWallet'
     | 'createOffer'
+    | 'getOfferById'
     | 'acceptOffer'
-    | 'closeOffer'
+    | 'validateOffer'
+    | 'confirmOffer'
+    | 'cancelOffer'
+    | 'disputeOffer'
     | 'addPaymentMethod'
     | 'setDefaultPaymentMethod'
     | 'removePaymentMethod'
@@ -97,7 +115,6 @@ const initialState: Omit<
         currency: 'MAD',
     },
     offers: [
-        // Petite data de base pour tester UI
         {
             id: uid(),
             userName: 'Marcellin',
@@ -107,7 +124,9 @@ const initialState: Omit<
             receiveCurrency: 'GNF',
             exchangeRate: 1050,
             status: 'ACTIVE',
+            seller: { name: 'Marcellin' },
             createdAt: now(),
+            updatedAt: now(),
         },
     ],
     transactions: [
@@ -194,7 +213,9 @@ export const useMockDb = create<MockDbState>()(
                     receiveCurrency,
                     exchangeRate,
                     status: 'ACTIVE',
+                    seller: { name: userName },
                     createdAt: now(),
+                    updatedAt: now(),
                 };
 
                 const tx: Transaction = {
@@ -220,19 +241,24 @@ export const useMockDb = create<MockDbState>()(
                 return offer;
             },
 
-            acceptOffer: (offerId) => {
+            getOfferById: (id) => get().offers.find((o) => o.id === id),
+
+            acceptOffer: (offerId, buyerPhone, buyerName) => {
                 const offer = get().offers.find((o) => o.id === offerId);
                 if (!offer) return;
+                if (offer.status !== 'ACTIVE') return;
 
-                // On simule que l’offre est “acceptée” et donc fermée côté liste
-                const nextOffers = get().offers.map((o) =>
-                    o.id === offerId ? { ...o, status: 'CLOSED' as OfferStatus } : o
-                );
+                const next: Offer = {
+                    ...offer,
+                    status: 'ACCEPTED',
+                    buyer: { name: buyerName ?? 'Acheteur', phone: buyerPhone },
+                    updatedAt: now(),
+                };
 
                 const tx: Transaction = {
                     id: uid(),
                     type: 'OFFER_ACCEPTED',
-                    description: `Offre acceptée (${offer.sendCurrency} → ${offer.receiveCurrency}) (mock)`,
+                    description: `Offre acceptée (buyer a saisi son numéro) (mock)`,
                     amount: offer.sendAmount,
                     currency: offer.sendCurrency,
                     createdAt: now(),
@@ -240,17 +266,120 @@ export const useMockDb = create<MockDbState>()(
                 };
 
                 set({
-                    offers: nextOffers,
+                    offers: get().offers.map((o) => (o.id === offerId ? next : o)),
                     transactions: [tx, ...get().transactions],
                 });
 
-                get().pushNotification('Offre acceptée', `Offre de ${offer.userName} acceptée (mock)`);
+                get().pushNotification(
+                    "Offre acceptée",
+                    `Acheteur a saisi le numéro: ${buyerPhone} (mock)`
+                );
             },
 
-            closeOffer: (offerId) => {
+            validateOffer: (offerId, sellerPhone, sellerName) => {
+                const offer = get().offers.find((o) => o.id === offerId);
+                if (!offer) return;
+                if (offer.status !== 'ACCEPTED') return;
+
+                const next: Offer = {
+                    ...offer,
+                    status: 'VALIDATED',
+                    seller: { name: sellerName ?? offer.userName ?? 'Vendeur', phone: sellerPhone },
+                    updatedAt: now(),
+                };
+
+                const tx: Transaction = {
+                    id: uid(),
+                    type: 'OFFER_VALIDATED',
+                    description: `Offre validée (seller a saisi son numéro) (mock)`,
+                    amount: offer.sendAmount,
+                    currency: offer.sendCurrency,
+                    createdAt: now(),
+                    status: 'success',
+                };
+
                 set({
-                    offers: get().offers.map((o) => (o.id === offerId ? { ...o, status: 'CLOSED' as OfferStatus } : o)),
+                    offers: get().offers.map((o) => (o.id === offerId ? next : o)),
+                    transactions: [tx, ...get().transactions],
                 });
+
+                get().pushNotification(
+                    "Offre validée",
+                    `Vendeur a saisi le numéro: ${sellerPhone} (mock)`
+                );
+            },
+
+            confirmOffer: (offerId) => {
+                const offer = get().offers.find((o) => o.id === offerId);
+                if (!offer) return;
+                if (offer.status !== 'VALIDATED') return;
+
+                const next: Offer = { ...offer, status: 'COMPLETED', updatedAt: now() };
+
+                const tx: Transaction = {
+                    id: uid(),
+                    type: 'OFFER_CONFIRMED',
+                    description: `Offre confirmée (COMPLETED) (mock)`,
+                    amount: offer.sendAmount,
+                    currency: offer.sendCurrency,
+                    createdAt: now(),
+                    status: 'success',
+                };
+
+                set({
+                    offers: get().offers.map((o) => (o.id === offerId ? next : o)),
+                    transactions: [tx, ...get().transactions],
+                });
+
+                get().pushNotification('Offre terminée', `Transaction complétée (mock)`);
+            },
+
+            cancelOffer: (offerId, reason) => {
+                const offer = get().offers.find((o) => o.id === offerId);
+                if (!offer) return;
+
+                const next: Offer = { ...offer, status: 'CANCELLED', updatedAt: now() };
+
+                const tx: Transaction = {
+                    id: uid(),
+                    type: 'OFFER_CANCELLED',
+                    description: `Offre annulée (mock)${reason ? ` - ${reason}` : ''}`,
+                    amount: offer.sendAmount,
+                    currency: offer.sendCurrency,
+                    createdAt: now(),
+                    status: 'success',
+                };
+
+                set({
+                    offers: get().offers.map((o) => (o.id === offerId ? next : o)),
+                    transactions: [tx, ...get().transactions],
+                });
+
+                get().pushNotification('Offre annulée', reason ? reason : 'Annulation (mock)');
+            },
+
+            disputeOffer: (offerId, reason) => {
+                const offer = get().offers.find((o) => o.id === offerId);
+                if (!offer) return;
+
+                const next: Offer = { ...offer, status: 'DISPUTED', disputeReason: reason, updatedAt: now() };
+
+                const tx: Transaction = {
+                    id: uid(),
+                    type: 'OFFER_DISPUTED',
+                    description: `Litige ouvert (mock) - ${reason}`,
+                    amount: offer.sendAmount,
+                    currency: offer.sendCurrency,
+                    createdAt: now(),
+                    status: 'success',
+                };
+
+                set({
+                    offers: get().offers.map((o) => (o.id === offerId ? next : o)),
+                    transactions: [tx, ...get().transactions],
+                });
+
+                get().pushNotification('Litige', reason);
             },
 
             addPaymentMethod: (type) => {
@@ -285,7 +414,6 @@ export const useMockDb = create<MockDbState>()(
 
             removePaymentMethod: (id) => {
                 const list = get().paymentMethods.filter((m) => m.id !== id);
-
                 const hasDefault = list.some((m) => m.isDefault);
                 const normalized = hasDefault ? list : list.map((m, i) => (i === 0 ? { ...m, isDefault: true } : m));
 
