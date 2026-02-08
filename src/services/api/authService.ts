@@ -1,5 +1,5 @@
 import { APP_MODE } from '@/constants/app';
-import { apiClient, saveTokens } from './apiClient';
+import { apiClient, saveTokens, clearTokens } from './apiClient';
 import {
     PhoneAuthRequest,
     OTPVerifyRequest,
@@ -162,6 +162,47 @@ export const authService = {
         return {
             access: `mock_access_${Date.now()}`,
             refresh: `mock_refresh_${Date.now()}`,
+        };
+    },
+
+    logout: async (refreshToken: string): Promise<void> => {
+        if (!APP_MODE.USE_MOCK) {
+            try {
+                await apiClient.post('/api/accounts/auth/logout/', { refresh: refreshToken });
+            } catch {
+                // On continue même si le backend est inaccessible
+            } finally {
+                await clearTokens();
+            }
+            return;
+        }
+
+        await clearTokens();
+    },
+
+    getProfile: async () => {
+        if (!APP_MODE.USE_MOCK) {
+            const res = await apiClient.get('/api/accounts/profile/');
+            // Backend retourne { success, profile, metadata } — on normalise en { user }
+            return { ...res.data, user: res.data.profile ?? res.data.user };
+        }
+
+        await wait(250);
+        return {
+            success: true,
+            profile: {
+                id: 'mock-user-id',
+                full_phone_number: '+212000000000',
+                phone_number: '000000000',
+                country_code: '+212',
+                phone_verified: true,
+                date_joined: new Date().toISOString(),
+                is_active: true,
+                kyc_status: 'unverified',
+                first_name: 'Utilisateur',
+                last_name: 'Mock',
+                email: '',
+            },
         };
     },
 };

@@ -103,10 +103,22 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
 
       // La navigation sera gérée automatiquement par AppNavigator
     } catch (error: any) {
+      console.error('❌ OTP verification error:', error);
+
       // Vibration d'erreur
       Vibration.vibrate([0, 50, 50, 50]);
 
-      const remaining = error.remaining_attempts ?? remainingAttempts - 1;
+      let errorMessage = 'Code incorrect';
+      let remaining = remainingAttempts - 1;
+
+      if (error.response) {
+        const data = error.response.data;
+        errorMessage = data?.error || data?.message || 'Code incorrect';
+        remaining = data?.remaining_attempts ?? remaining;
+      } else if (error.request) {
+        errorMessage = 'Impossible de vérifier le code. Vérifiez votre connexion.';
+      }
+
       setRemainingAttempts(remaining);
 
       if (remaining <= 0) {
@@ -117,8 +129,8 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
         );
       } else {
         Alert.alert(
-          'Code incorrect',
-          `Il vous reste ${remaining} tentative${remaining > 1 ? 's' : ''}`
+          'Erreur',
+          `${errorMessage}\nIl vous reste ${remaining} tentative${remaining > 1 ? 's' : ''}`
         );
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
@@ -140,7 +152,17 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
       Alert.alert('Succès', 'Un nouveau code a été envoyé');
       inputRefs.current[0]?.focus();
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de renvoyer le code');
+      console.error('❌ Resend OTP error:', error);
+
+      let errorMessage = 'Impossible de renvoyer le code';
+      if (error.response) {
+        const data = error.response.data;
+        errorMessage = data?.error || data?.message || errorMessage;
+      } else if (error.request) {
+        errorMessage = 'Pas de connexion au serveur';
+      }
+
+      Alert.alert('Erreur', errorMessage);
     }
   };
 

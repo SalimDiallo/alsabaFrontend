@@ -15,9 +15,12 @@ export interface User {
     first_name?: string;
     last_name?: string;
     email?: string;
+    city?: string;
+    postal_code?: string;
+    state?: string;
 
     // KYC
-    kyc_status: 'unverified' | 'pending' | 'approved' | 'rejected';
+    kyc_status: 'unverified' | 'pending' | 'verified' | 'rejected';
     kyc_verified_at?: string;
     kyc_submitted_at?: string;
     kyc_retry_count?: number;
@@ -146,9 +149,16 @@ export interface RefreshTokenResponse {
     refresh?: string;  // Optionnel si rotation des tokens
 }
 
-// Réponse du profil
+// Réponse du profil (GET retourne { success, profile, metadata }, PATCH retourne { success, message, profile })
 export interface ProfileResponse {
-    user: User;
+    success?: boolean;
+    user?: User;    // utilisé par authService.getProfile() qui mappe sur res.data
+    profile?: User; // utilisé par profileService (backend retourne "profile")
+    message?: string;
+    metadata?: {
+        retrieved_at?: string;
+        requires_kyc?: boolean;
+    };
 }
 
 // Réponse de demande de suppression

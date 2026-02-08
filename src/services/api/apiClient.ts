@@ -11,10 +11,16 @@ export const apiClient: AxiosInstance = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config) => {
-    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
-    if (token) {
-        config.headers = config.headers ?? {};
-        config.headers.Authorization = `Bearer ${token}`;
+    // Ne pas ajouter de token pour les endpoints d'authentification
+    const authEndpoints = ['/api/accounts/auth/phone/', '/api/accounts/auth/verify/', '/api/accounts/auth/resend/', '/api/accounts/auth/logout/'];
+    const isAuthEndpoint = authEndpoints.some(endpoint => config.url?.includes(endpoint));
+
+    if (!isAuthEndpoint) {
+        const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+        if (token) {
+            config.headers = config.headers ?? {};
+            config.headers.Authorization = `Bearer ${token}`;
+        }
     }
     config.headers = config.headers ?? {};
     config.headers.Accept = 'application/json';
@@ -56,7 +62,11 @@ apiClient.interceptors.response.use(
     async (error: AxiosError<any>) => {
         const originalRequest: any = error.config;
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Ne pas essayer de refresh sur les endpoints d'authentification
+        const authEndpoints = ['/api/accounts/auth/phone/', '/api/accounts/auth/verify/', '/api/accounts/auth/refresh/', '/api/accounts/auth/logout/'];
+        const isAuthEndpoint = authEndpoints.some(endpoint => originalRequest?.url?.includes(endpoint));
+
+        if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
             if (isRefreshing) {
                 return new Promise((resolve, reject) => {
                     failedQueue.push({

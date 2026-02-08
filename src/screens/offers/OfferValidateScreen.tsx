@@ -8,50 +8,43 @@ import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
 import { Button } from '@/components/common/Button';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-import { useMockDb } from '@/store/useMockDb';
+import { offersService } from '@/services/api/offerService';
 
 type Props = NativeStackScreenProps<OfferStackParamList, 'OfferValidate'>;
 
 const OfferValidateScreen: React.FC<Props> = ({ navigation, route }) => {
   const { offerId } = route.params;
 
-  const offer = useMockDb((s) => s.getOfferById(offerId));
-  const validateOffer = useMockDb((s) => s.validateOffer);
-
-  const [phone, setPhone] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryPhone, setBeneficiaryPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (!offer) {
-    return (
-      <Screen padding={false}>
-        <Header
-          title="Valider"
-          leftAction={{ icon: <Icon name="arrow-back" size={24} color={COLORS.text.primary} />, onPress: () => navigation.goBack() }}
-        />
-        <View style={{ padding: SPACING.md }}>
-          <Text style={{ color: COLORS.error }}>Offre introuvable.</Text>
-        </View>
-      </Screen>
-    );
-  }
-
   const onSubmit = async () => {
-    if (!phone.trim()) {
-      Alert.alert('Erreur', 'Veuillez saisir un numéro.');
+    if (!beneficiaryPhone.trim()) {
+      Alert.alert('Erreur', 'Veuillez saisir votre numéro de paiement.');
       return;
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 350));
-    validateOffer(offerId, phone.trim(), offer.userName);
+    try {
+      await offersService.validate(offerId, {
+        beneficiary_name: beneficiaryName.trim() || undefined,
+        beneficiary_phone: beneficiaryPhone.trim(),
+      });
 
-    setLoading(false);
-    Alert.alert('OK', 'Numéro seller enregistré (mock).', [
-      {
-        text: 'Retour détails',
-        onPress: () => navigation.replace('OfferDetails', { offerId }),
-      },
-    ]);
+      Alert.alert('Offre validée', 'Les fonds sont verrouillés. Confirmez pour exécuter le swap.', [
+        { text: 'Voir les détails', onPress: () => navigation.replace('OfferDetails', { offerId }) },
+      ]);
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.error ??
+        e?.response?.data?.message ??
+        e?.message ??
+        "Impossible de valider l'offre";
+      Alert.alert('Erreur', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -63,22 +56,31 @@ const OfferValidateScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <View style={styles.content}>
         <Card style={styles.card}>
-          <Text style={styles.title}>Numéro de paiement (seller)</Text>
+          <Text style={styles.title}>Votre numéro de paiement (vendeur)</Text>
           <Text style={styles.subtitle}>
-            Saisis le numéro sur lequel tu veux recevoir {offer.sendCurrency} (mock).
+            Saisis le numéro sur lequel tu veux recevoir les fonds de l'échange.
           </Text>
 
-          <Text style={styles.label}>Téléphone</Text>
+          <Text style={styles.label}>Nom (optionnel)</Text>
           <TextInput
             style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="ex: 07xxxxxxxx"
+            value={beneficiaryName}
+            onChangeText={setBeneficiaryName}
+            placeholder="Prénom Nom"
             placeholderTextColor={COLORS.text.disabled}
           />
 
-          <Button title={loading ? 'Validation…' : 'Valider'} onPress={onSubmit} fullWidth />
+          <Text style={styles.label}>Téléphone (E.164)</Text>
+          <TextInput
+            style={styles.input}
+            value={beneficiaryPhone}
+            onChangeText={setBeneficiaryPhone}
+            keyboardType="phone-pad"
+            placeholder="+21200000000"
+            placeholderTextColor={COLORS.text.disabled}
+          />
+
+          <Button title={loading ? 'Validation…' : 'Valider'} onPress={onSubmit} fullWidth disabled={loading} />
         </Card>
       </View>
     </Screen>
@@ -90,7 +92,6 @@ const styles = StyleSheet.create({
   card: { padding: SPACING.md },
   title: { fontSize: TYPOGRAPHY.sizes.lg, fontWeight: TYPOGRAPHY.weights.bold, color: COLORS.text.primary },
   subtitle: { marginTop: 6, color: COLORS.text.secondary, marginBottom: SPACING.md },
-
   label: { color: COLORS.text.secondary, marginBottom: SPACING.xs },
   input: {
     borderWidth: 1,

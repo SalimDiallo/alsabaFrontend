@@ -16,11 +16,11 @@ export const profileService = {
 
     // 8) POST /api/accounts/kyc/verify/ (multipart)
     submitKyc: async (payload: {
-        document_type: 'id_card' | 'passport' | 'driver_license';
+        document_type: 'id_card' | 'passport' | 'drivers_license' | 'residence_permit';
         front_image: { uri: string; name?: string; type?: string };
         back_image?: { uri: string; name?: string; type?: string };
         perform_document_liveness?: boolean;
-        min_age?: number;
+        minimum_age?: number;
     }) => {
         const form = new FormData();
         form.append('document_type', payload.document_type);
@@ -42,8 +42,8 @@ export const profileService = {
         if (payload.perform_document_liveness !== undefined) {
             form.append('perform_document_liveness', String(payload.perform_document_liveness));
         }
-        if (payload.min_age !== undefined) {
-            form.append('min_age', String(payload.min_age));
+        if (payload.minimum_age !== undefined) {
+            form.append('minimum_age', String(payload.minimum_age));
         }
 
         const res = await apiClient.post('/api/accounts/kyc/verify/', form, {

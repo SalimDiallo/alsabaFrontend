@@ -8,77 +8,79 @@ import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
 import { Button } from '@/components/common/Button';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-import { useMockDb } from '@/store/useMockDb';
+import { offersService } from '@/services/api/offerService';
 
 type Props = NativeStackScreenProps<OfferStackParamList, 'OfferAccept'>;
 
 const OfferAcceptScreen: React.FC<Props> = ({ navigation, route }) => {
   const { offerId } = route.params;
 
-  const offer = useMockDb((s) => s.getOfferById(offerId));
-  const acceptOffer = useMockDb((s) => s.acceptOffer);
-
-  const [phone, setPhone] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryPhone, setBeneficiaryPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (!offer) {
-    return (
-      <Screen padding={false}>
-        <Header
-          title="Accepter"
-          leftAction={{ icon: <Icon name="arrow-back" size={24} color={COLORS.text.primary} />, onPress: () => navigation.goBack() }}
-        />
-        <View style={{ padding: SPACING.md }}>
-          <Text style={{ color: COLORS.error }}>Offre introuvable.</Text>
-        </View>
-      </Screen>
-    );
-  }
-
   const onSubmit = async () => {
-    if (!phone.trim()) {
-      Alert.alert('Erreur', 'Veuillez saisir un numéro.');
+    if (!beneficiaryPhone.trim()) {
+      Alert.alert('Erreur', 'Veuillez saisir le numéro de destination.');
       return;
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 350));
-    acceptOffer(offerId, phone.trim(), 'Acheteur');
+    try {
+      await offersService.accept(offerId, {
+        beneficiary_name: beneficiaryName.trim() || undefined,
+        beneficiary_phone: beneficiaryPhone.trim(),
+      });
 
-    setLoading(false);
-    Alert.alert('OK', 'Numéro buyer enregistré (mock).', [
-      {
-        text: 'Continuer',
-        onPress: () => navigation.replace('OfferDetails', { offerId }),
-      },
-    ]);
+      Alert.alert('Offre acceptée', 'Vos fonds ont été bloqués en escrow. Attendez la validation du vendeur.', [
+        { text: 'Voir les détails', onPress: () => navigation.replace('OfferDetails', { offerId }) },
+      ]);
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.error ??
+        e?.response?.data?.message ??
+        e?.message ??
+        "Impossible d'accepter l'offre";
+      Alert.alert('Erreur', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <Screen padding={false} scrollable>
       <Header
-        title="Accepter l’offre"
+        title="Accepter l'offre"
         leftAction={{ icon: <Icon name="arrow-back" size={24} color={COLORS.text.primary} />, onPress: () => navigation.goBack() }}
       />
 
       <View style={styles.content}>
         <Card style={styles.card}>
-          <Text style={styles.title}>Numéro de destination (buyer)</Text>
+          <Text style={styles.title}>Bénéficiaire (acheteur)</Text>
           <Text style={styles.subtitle}>
-            Saisis le numéro sur lequel tu veux recevoir {offer.receiveCurrency} (mock).
+            Saisis le nom et numéro sur lequel tu veux recevoir les fonds.
           </Text>
 
-          <Text style={styles.label}>Téléphone</Text>
+          <Text style={styles.label}>Nom (optionnel)</Text>
           <TextInput
             style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="ex: 06xxxxxxxx"
+            value={beneficiaryName}
+            onChangeText={setBeneficiaryName}
+            placeholder="Prénom Nom"
             placeholderTextColor={COLORS.text.disabled}
           />
 
-          <Button title={loading ? 'Enregistrement…' : 'Confirmer'} onPress={onSubmit} fullWidth />
+          <Text style={styles.label}>Téléphone (E.164)</Text>
+          <TextInput
+            style={styles.input}
+            value={beneficiaryPhone}
+            onChangeText={setBeneficiaryPhone}
+            keyboardType="phone-pad"
+            placeholder="+22200000000"
+            placeholderTextColor={COLORS.text.disabled}
+          />
+
+          <Button title={loading ? 'Acceptation…' : 'Confirmer'} onPress={onSubmit} fullWidth disabled={loading} />
         </Card>
       </View>
     </Screen>
@@ -90,7 +92,6 @@ const styles = StyleSheet.create({
   card: { padding: SPACING.md },
   title: { fontSize: TYPOGRAPHY.sizes.lg, fontWeight: TYPOGRAPHY.weights.bold, color: COLORS.text.primary },
   subtitle: { marginTop: 6, color: COLORS.text.secondary, marginBottom: SPACING.md },
-
   label: { color: COLORS.text.secondary, marginBottom: SPACING.xs },
   input: {
     borderWidth: 1,

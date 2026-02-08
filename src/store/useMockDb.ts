@@ -80,7 +80,7 @@ type MockDbState = {
     disputeOffer: (offerId: string, reason: string) => void;
 
     // Payment
-    addPaymentMethod: (type: PaymentMethodType) => PaymentMethod;
+    addPaymentMethod: (type: PaymentMethodType, label?: string) => PaymentMethod;
     setDefaultPaymentMethod: (id: string) => void;
     removePaymentMethod: (id: string) => void;
 
@@ -382,7 +382,7 @@ export const useMockDb = create<MockDbState>()(
                 get().pushNotification('Litige', reason);
             },
 
-            addPaymentMethod: (type) => {
+            addPaymentMethod: (type, customLabel) => {
                 const mapLabel: Record<PaymentMethodType, string> = {
                     CARD: 'Carte Bancaire',
                     MOBILE_MONEY: 'Mobile Money',
@@ -395,7 +395,7 @@ export const useMockDb = create<MockDbState>()(
                 const method: PaymentMethod = {
                     id: uid(),
                     type,
-                    label: `${mapLabel[type]} (mock)`,
+                    label: customLabel || `${mapLabel[type]} (mock)`,
                     createdAt: now(),
                     isDefault: !hasDefault,
                 };

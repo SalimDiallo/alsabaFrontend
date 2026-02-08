@@ -1,48 +1,130 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '@/types/navigation.types';
 import { Screen } from '@/components/layout/Screen';
-import { Header } from '@/components/layout/Header';
-import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
-import { Divider } from '@/components/common/Divider';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
 import { useAuthStore } from '@/store/useAuthStore';
 import { formatPhoneNumber } from '@/utils/formatters';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
+// Configuration des statuts KYC
+const getKycConfig = (status?: string) => {
+  switch (status) {
+    case 'verified':
+      return {
+        text: 'Vérifié',
+        color: COLORS.success,
+        bgColor: COLORS.soft.success,
+        icon: 'checkmark-circle' as const,
+      };
+    case 'pending':
+      return {
+        text: 'En cours',
+        color: COLORS.warning,
+        bgColor: COLORS.soft.warning,
+        icon: 'time-outline' as const,
+      };
+    case 'rejected':
+      return {
+        text: 'Rejeté',
+        color: COLORS.error,
+        bgColor: COLORS.soft.error,
+        icon: 'close-circle' as const,
+      };
+    default:
+      return {
+        text: 'Non vérifié',
+        color: COLORS.text.secondary,
+        bgColor: COLORS.neutral[100],
+        icon: 'shield-outline' as const,
+      };
+  }
+};
+
+// Composant MenuItem
+interface MenuItemProps {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  badge?: string;
+  badgeColor?: string;
+  badgeBgColor?: string;
+  showChevron?: boolean;
+  danger?: boolean;
+}
+
+const MenuItem: React.FC<MenuItemProps> = ({
+  icon,
+  label,
+  onPress,
+  badge,
+  badgeColor,
+  badgeBgColor,
+  showChevron = true,
+  danger = false,
+}) => (
+  <TouchableOpacity
+    style={styles.menuItem}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View style={[
+      styles.menuIconContainer,
+      danger && { backgroundColor: COLORS.soft.error },
+    ]}>
+      <Icon
+        name={icon as any}
+        size={18}
+        color={danger ? COLORS.error : COLORS.text.secondary}
+      />
+    </View>
+    <View style={styles.menuContent}>
+      <Text style={[styles.menuLabel, danger && { color: COLORS.error }]}>
+        {label}
+      </Text>
+      {badge && (
+        <View style={[styles.menuBadge, { backgroundColor: badgeBgColor || COLORS.neutral[100] }]}>
+          <Text style={[styles.menuBadgeText, { color: badgeColor || COLORS.text.secondary }]}>
+            {badge}
+          </Text>
+        </View>
+      )}
+    </View>
+    {showChevron && (
+      <Icon name="chevron-forward" size={18} color={COLORS.neutral[400]} />
+    )}
+  </TouchableOpacity>
+);
+
 const ProfileScreen = () => {
-  const navigation = useNavigation<any>(); // <- important en Tab context
+  const navigation = useNavigation<any>();
   const { user, logout, refreshProfile, isLoading } = useAuthStore();
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // ✅ Navigation stack robuste : on cible explicitement le RootStack
   const goStack = (name: keyof RootStackParamList, params?: any) => {
     const root = navigation.getParent?.('RootStack');
     if (root) {
       root.navigate(name as any, params);
       return;
     }
-
-    // fallback (si jamais l'id n'est pas trouvé)
     const parent = navigation.getParent?.();
     if (parent) {
       parent.navigate(name as any, params);
       return;
     }
-
     navigation.navigate(name as any, params);
   };
 
   useEffect(() => {
-  if (!user) refreshProfile();
-}, [user, refreshProfile]);
+    if (!user) refreshProfile();
+  }, [user, refreshProfile]);
 
   const firstName = user?.first_name ?? '';
   const lastName = user?.last_name ?? '';
@@ -50,23 +132,21 @@ const ProfileScreen = () => {
   const countryCode = user?.country_code ?? '+212';
 
   const initials = useMemo(() => {
-    return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase();
+    return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || 'U';
   }, [firstName, lastName]);
 
-  const comingSoon = () => Alert.alert('À venir', 'Cette fonctionnalité arrive bientôt');
+  const kyc = getKycConfig(user?.kyc_status);
 
-  const menuItems: Array<{
-    icon: React.ComponentProps<typeof Icon>['name'];
-    label: string;
-    onPress: () => void;
-  }> = ([
-    { icon: 'person-outline', label: 'Informations personnelles', onPress: () => goStack('PersonalInfo') },
-    { icon: 'card-outline', label: 'Moyens de paiement', onPress: () => goStack('PaymentMethods') },
-    { icon: 'shield-checkmark-outline', label: 'Sécurité', onPress: () => goStack('Settings', { title: 'Sécurité' }) },
-    { icon: 'notifications-outline', label: 'Notifications', onPress: () => goStack('Settings', { title: 'Notifications' }) },
-    { icon: 'help-circle-outline', label: 'Aide et support', onPress: () => goStack('Settings', { title: 'Aide et support' }) },
-    { icon: 'document-text-outline', label: "Conditions d'utilisation", onPress: () => goStack('Settings', { title: "Conditions d'utilisation" }) },
-  ] as const).map((item) => ({ ...item, onPress: item.onPress ?? comingSoon }));
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshProfile();
+    } catch (e) {
+      console.log('Refresh error:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
@@ -89,187 +169,306 @@ const ProfileScreen = () => {
     ]);
   };
 
-  const handleRefresh = async () => {
-    try {
-      setError(null);
-      await refreshProfile();
-    } catch (e) {
-      setError('Impossible de rafraîchir le profil');
-    }
-  };
-
   return (
-    <Screen padding={false} scrollable>
-      <Header title="Profil" />
-
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh} activeOpacity={0.7}>
-            <Icon name="refresh-outline" size={20} color={COLORS.text.primary} />
-            <Text style={styles.refreshText}>{isLoading ? 'Chargement…' : 'Rafraîchir'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {!!error && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        <Card style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials || 'U'}</Text>
-          </View>
-
-          <Text style={styles.name}>
-            {isLoading ? 'Chargement…' : (firstName || 'Utilisateur') + (lastName ? ` ${lastName}` : '')}
-          </Text>
-
-          <Text style={styles.phone}>
-            {phoneNumber ? formatPhoneNumber(phoneNumber, countryCode) : 'Non renseigné'}
-          </Text>
-
-          <View style={styles.badgesContainer}>
-            {!!user?.phone_verified && (
-              <View style={styles.phoneBadge}>
-                <Icon name="call-outline" size={14} color={COLORS.primary} />
-                <Text style={styles.phoneBadgeText}>Numéro vérifié</Text>
-              </View>
-            )}
-
-            {user?.kyc_status === 'approved' && (
-              <View style={styles.verifiedBadge}>
-                <Icon name="checkmark-circle" size={16} color={COLORS.success} />
-                <Text style={styles.verifiedText}>Compte vérifié</Text>
-              </View>
-            )}
-          </View>
-        </Card>
-
-        <Card style={styles.menuCard}>
-          {menuItems.map((item, index) => (
-            <View key={`${item.label}-${index}`}>
-              <TouchableOpacity style={styles.menuItem} onPress={item.onPress} activeOpacity={0.7}>
-                <Icon name={item.icon} size={24} color={COLORS.text.secondary} />
-                <Text style={styles.menuLabel}>{item.label}</Text>
-                <Icon name="chevron-forward" size={20} color={COLORS.text.disabled} />
-              </TouchableOpacity>
-              {index < menuItems.length - 1 && <Divider />}
-            </View>
-          ))}
-        </Card>
-
+    <Screen
+      padding={false}
+      scrollable
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* Header avec profil */}
+      <View style={styles.headerSection}>
+        {/* Avatar et infos */}
         <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
+          style={styles.profileCard}
+          onPress={() => goStack('PersonalInfo')}
           activeOpacity={0.7}
-          disabled={isLoggingOut}
         >
-          <Icon name="log-out-outline" size={24} color={COLORS.error} />
-          <Text style={styles.logoutText}>{isLoggingOut ? 'Déconnexion…' : 'Déconnexion'}</Text>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <View style={styles.editAvatarBadge}>
+              <Icon name="pencil" size={10} color={COLORS.text.white} />
+            </View>
+          </View>
+
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName} numberOfLines={1}>
+              {isLoading ? 'Chargement…' : (firstName || 'Utilisateur') + (lastName ? ` ${lastName}` : '')}
+            </Text>
+            <Text style={styles.profilePhone}>
+              {phoneNumber ? formatPhoneNumber(phoneNumber, countryCode) : 'Non renseigné'}
+            </Text>
+          </View>
+
+          <Icon name="chevron-forward" size={20} color={COLORS.neutral[400]} />
         </TouchableOpacity>
 
-        <Text style={styles.version}>Version 1.0.0</Text>
+        {/* Badges de statut */}
+        <View style={styles.statusBadges}>
+          {user?.phone_verified && (
+            <View style={[styles.statusBadge, { backgroundColor: COLORS.soft.primary }]}>
+              <Icon name="call" size={12} color={COLORS.primary} />
+              <Text style={[styles.statusBadgeText, { color: COLORS.primary }]}>
+                Téléphone vérifié
+              </Text>
+            </View>
+          )}
+          <View style={[styles.statusBadge, { backgroundColor: kyc.bgColor }]}>
+            <Icon name={kyc.icon} size={12} color={kyc.color} />
+            <Text style={[styles.statusBadgeText, { color: kyc.color }]}>
+              {kyc.text}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Menu principal */}
+      <View style={styles.content}>
+        {/* Compte */}
+        <View style={styles.menuSection}>
+          <Text style={styles.sectionLabel}>Compte</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="person-outline"
+              label="Informations personnelles"
+              onPress={() => goStack('PersonalInfo')}
+            />
+            {user?.kyc_status !== 'verified' && (
+              <MenuItem
+                icon="shield-checkmark-outline"
+                label="Vérifier mon identité"
+                onPress={() => goStack('KYCFlow')}
+                badge={user?.kyc_status === 'pending' ? 'En cours' : user?.kyc_status === 'rejected' ? 'Échoué' : undefined}
+                badgeColor={user?.kyc_status === 'pending' ? COLORS.warning : user?.kyc_status === 'rejected' ? COLORS.error : undefined}
+                badgeBgColor={user?.kyc_status === 'pending' ? COLORS.soft.warning : user?.kyc_status === 'rejected' ? COLORS.soft.error : undefined}
+              />
+            )}
+            <MenuItem
+              icon="card-outline"
+              label="Moyens de paiement"
+              onPress={() => goStack('PaymentMethods')}
+            />
+          </View>
+        </View>
+
+        {/* Préférences */}
+        <View style={styles.menuSection}>
+          <Text style={styles.sectionLabel}>Préférences</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => goStack('Settings', { title: 'Notifications' })}
+            />
+            <MenuItem
+              icon="language-outline"
+              label="Langue"
+              onPress={() => goStack('Settings', { title: 'Langue' })}
+              badge="Français"
+            />
+          </View>
+        </View>
+
+        {/* Support */}
+        <View style={styles.menuSection}>
+          <Text style={styles.sectionLabel}>Support</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="help-circle-outline"
+              label="Aide et support"
+              onPress={() => goStack('Settings', { title: 'Aide et support' })}
+            />
+            <MenuItem
+              icon="document-text-outline"
+              label="Conditions d'utilisation"
+              onPress={() => goStack('Settings', { title: "Conditions d'utilisation" })}
+            />
+            <MenuItem
+              icon="shield-outline"
+              label="Politique de confidentialité"
+              onPress={() => goStack('Settings', { title: 'Politique de confidentialité' })}
+            />
+          </View>
+        </View>
+
+        {/* Déconnexion */}
+        <View style={styles.menuSection}>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="log-out-outline"
+              label={isLoggingOut ? 'Déconnexion…' : 'Déconnexion'}
+              onPress={handleLogout}
+              showChevron={false}
+              danger
+            />
+          </View>
+        </View>
+
+        {/* Version */}
+        <Text style={styles.version}>ALSABA • Version 1.0.0</Text>
       </View>
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: SPACING.md },
-
-  topRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: SPACING.sm },
-  refreshBtn: {
+  // Header Section
+  headerSection: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.surface,
-  },
-  refreshText: { color: COLORS.text.primary, fontWeight: TYPOGRAPHY.weights.medium },
-
-  errorBanner: {
-    backgroundColor: '#FDECEA',
-    borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm,
-    marginBottom: SPACING.md,
+    backgroundColor: COLORS.neutral[50],
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.sm,
   },
-  errorText: { color: COLORS.error, fontSize: TYPOGRAPHY.sizes.sm },
-
-  profileCard: { alignItems: 'center', padding: SPACING.xl, marginBottom: SPACING.md },
+  avatarContainer: {
+    position: 'relative',
+  },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.md,
   },
-  avatarText: { fontSize: TYPOGRAPHY.sizes.xxl, fontWeight: TYPOGRAPHY.weights.bold, color: COLORS.text.white },
-  name: {
-    fontSize: TYPOGRAPHY.sizes.xl,
+  avatarText: {
+    fontSize: TYPOGRAPHY.sizes.lg,
     fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.text.primary,
-    marginBottom: SPACING.xs / 2,
+    color: COLORS.text.white,
   },
-  phone: { fontSize: TYPOGRAPHY.sizes.md, color: COLORS.text.secondary, marginBottom: SPACING.sm },
-
-  badgesContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: SPACING.xs },
-  phoneBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  phoneBadgeText: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.weights.medium,
-    marginLeft: SPACING.xs,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  verifiedText: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    color: COLORS.success,
-    fontWeight: TYPOGRAPHY.weights.medium,
-    marginLeft: SPACING.xs,
-  },
-
-  menuCard: { padding: 0, marginBottom: SPACING.md },
-  menuItem: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md },
-  menuLabel: { flex: 1, fontSize: TYPOGRAPHY.sizes.md, color: COLORS.text.primary, marginLeft: SPACING.md },
-
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  editAvatarBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.secondary,
     justifyContent: 'center',
-    padding: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    marginBottom: SPACING.lg,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.neutral[50],
   },
-  logoutText: {
-    fontSize: TYPOGRAPHY.sizes.md,
-    fontWeight: TYPOGRAPHY.weights.semibold,
-    color: COLORS.error,
+  profileInfo: {
+    flex: 1,
     marginLeft: SPACING.sm,
   },
+  profileName: {
+    fontSize: TYPOGRAPHY.sizes.md,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    color: COLORS.text.primary,
+  },
+  profilePhone: {
+    fontSize: TYPOGRAPHY.sizes.xs,
+    color: COLORS.text.secondary,
+    marginTop: 2,
+  },
 
-  version: { fontSize: TYPOGRAPHY.sizes.xs, color: COLORS.text.disabled, textAlign: 'center' },
+  // Status Badges
+  statusBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+
+  // Content
+  content: {
+    flex: 1,
+    padding: SPACING.md,
+  },
+
+  // Menu Section
+  menuSection: {
+    marginBottom: SPACING.md,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    color: COLORS.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: SPACING.xs,
+    marginLeft: SPACING.xs,
+  },
+  menuCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+
+  // Menu Item
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  menuIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.neutral[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: SPACING.sm,
+  },
+  menuLabel: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.sizes.sm,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    color: COLORS.text.primary,
+  },
+  menuBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.full,
+    marginRight: SPACING.xs,
+  },
+  menuBadgeText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+
+  // Version
+  version: {
+    fontSize: 10,
+    color: COLORS.text.disabled,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
 });
 
 export default ProfileScreen;

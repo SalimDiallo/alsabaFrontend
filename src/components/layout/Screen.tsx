@@ -7,6 +7,8 @@ import {
   StyleSheet,
   View,
   ViewStyle,
+  RefreshControl,
+  RefreshControlProps,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '@/constants/colors';
@@ -17,6 +19,7 @@ interface ScreenProps {
   scrollable?: boolean;
   keyboardAvoiding?: boolean;
   padding?: boolean;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 export const Screen: React.FC<ScreenProps> = ({
@@ -25,26 +28,31 @@ export const Screen: React.FC<ScreenProps> = ({
   scrollable = false,
   keyboardAvoiding = false,
   padding = false,
+  refreshControl,
 }) => {
-  const Wrapper = scrollable ? ScrollView : View;
-  
   // Base content passes children
-  const Content = (
-    <Wrapper
-      style={[
-        scrollable ? styles.scrollContent : styles.viewContent,
-        !scrollable && padding && { padding: SPACING.md },
-        style,
+  const Content = scrollable ? (
+    <ScrollView
+      style={[styles.scrollContent, style]}
+      contentContainerStyle={[
+        styles.scrollContainer,
+        padding && { padding: SPACING.md },
       ]}
-      contentContainerStyle={
-        scrollable
-          ? [styles.scrollContainer, padding && { padding: SPACING.md }]
-          : undefined
-      }
       showsVerticalScrollIndicator={false}
+      refreshControl={refreshControl}
     >
       {children}
-    </Wrapper>
+    </ScrollView>
+  ) : (
+    <View
+      style={[
+        styles.viewContent,
+        padding && { padding: SPACING.md },
+        style,
+      ]}
+    >
+      {children}
+    </View>
   );
 
   return (

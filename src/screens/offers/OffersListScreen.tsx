@@ -1,8 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '@/types/navigation.types';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { Screen } from '@/components/layout/Screen';
 import { Header } from '@/components/layout/Header';
 import { OfferCard } from '@/components/features/OfferCard';
@@ -10,20 +8,48 @@ import { SearchBar } from '@/components/common/SearchBar';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Icon } from '@/components/common/Icon';
 import { COLORS, SPACING, TYPOGRAPHY } from '@/constants/colors';
-import { useMockDb } from '@/store/useMockDb';
+import { RootStackParamList } from '@/types/navigation.types';
+import { Offer } from '@/types/offer.types';
+import { offersService } from '@/services/api/offerService';
 
 const OffersListScreen = () => {
-  const navigation = useNavigation<any>(); // tab context
+  const navigation = useNavigation<any>();
 
-  const offers = useMockDb((s) => s.offers);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchOffers = useCallback(async () => {
+    try {
+      const data = await offersService.list();
+      setOffers(data);
+    } catch (e) {
+      // silencieux — l'EmptyState s'affichera
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchOffers(); }, [fetchOffers]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchOffers();
+  };
 
   const filteredOffers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return offers.filter((offer) => offer.userName.toLowerCase().includes(q));
+    if (!q) return offers;
+    return offers.filter((o) =>
+      (o.userName ?? '').toLowerCase().includes(q) ||
+      o.currency_sell.toLowerCase().includes(q) ||
+      o.currency_buy.toLowerCase().includes(q)
+    );
   }, [offers, searchQuery]);
 
-  // ✅ helper pour naviguer vers RootStack
+  // helper pour naviguer vers RootStack
   const goStack = (name: keyof RootStackParamList, params?: any) => {
     const root = navigation.getParent?.('RootStack');
     if (root) return root.navigate(name as any, params);
@@ -65,12 +91,18 @@ const OffersListScreen = () => {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>1,050</Text>
+            <Text style={styles.statValue}>
+              {offers.length > 0
+                ? (offers.reduce((s, o) => s + o.rate, 0) / offers.length).toFixed(0)
+                : '—'}
+            </Text>
             <Text style={styles.statLabel}>Taux moyen</Text>
           </View>
         </View>
 
-        {filteredOffers.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator color={COLORS.primary} style={{ marginTop: SPACING.xl }} />
+        ) : filteredOffers.length === 0 ? (
           <EmptyState
             icon="file-tray-outline"
             title="Aucune offre trouvée"
@@ -85,12 +117,15 @@ const OffersListScreen = () => {
             renderItem={({ item }) => (
               <OfferCard
                 offer={item}
-                onAccept={() => openOffer(item.id)} // ✅ maintenant ça ouvre le flow
+                onAccept={() => openOffer(item.id)}
                 showAcceptButton
               />
             )}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+            }
           />
         )}
       </View>

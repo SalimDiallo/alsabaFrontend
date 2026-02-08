@@ -22,23 +22,32 @@ import GenericSettingsScreen from '@/screens/profile/GenericSettingsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const DEV_MODE = false;
-
 export const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
+  const { user, isAuthenticated, isBootstrapping, initializeAuth, logout } = useAuthStore();
 
+  // Initialisation de l'authentification au démarrage
   useEffect(() => {
-    if (!DEV_MODE) initializeAuth();
+    initializeAuth();
   }, [initializeAuth]);
 
-  if (!DEV_MODE && isLoading) return <Loader fullScreen message="Chargement..." />;
+  // Si pas d'utilisateur après le bootstrap, déconnecter
+  useEffect(() => {
+    if (!isBootstrapping && isAuthenticated && !user) {
+      // L'utilisateur est marqué comme authentifié mais pas de données user
+      // Cela indique un état incohérent, il faut déconnecter
+      logout();
+    }
+  }, [isBootstrapping, isAuthenticated, user, logout]);
 
-  const showMainApp = DEV_MODE || isAuthenticated;
+  // Afficher le loader pendant le bootstrapping
+  if (isBootstrapping) return <Loader fullScreen message="Chargement..." />;
+
+  const showMainApp = isAuthenticated;
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!showMainApp ? (
+        {showMainApp ? (
           <>
             <Stack.Screen name="Main" component={MainNavigator} />
 
