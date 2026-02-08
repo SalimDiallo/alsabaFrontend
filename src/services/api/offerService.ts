@@ -138,13 +138,16 @@ export const offersService = {
         return res.data;
     },
 
-    // GET /api/offers/exchange-rates/
-    exchangeRates: async (): Promise<Record<string, number>> => {
+    // GET /api/offers/exchange-rates/?base=MAD
+    // Retourne { [toCurrency]: rate } ex: { GNF: 1050.5, USD: 0.097, ... }
+    exchangeRates: async (base: string = 'MAD'): Promise<Record<string, number>> => {
         if (APP_MODE.USE_MOCK) {
             await wait(200);
-            return { MAD_GNF: 1050, GNF_MAD: 0.00095 };
+            if (base === 'MAD') return { GNF: 1050, USD: 0.097 };
+            if (base === 'GNF') return { MAD: 0.00095, USD: 0.000093 };
+            return {};
         }
-        const res = await apiClient.get('/api/offers/exchange-rates/');
+        const res = await apiClient.get('/api/offers/exchange-rates/', { params: { base: base.toUpperCase() } });
         return res.data?.rates ?? res.data ?? {};
     },
 };

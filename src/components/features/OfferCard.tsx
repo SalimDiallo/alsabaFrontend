@@ -59,7 +59,7 @@ export const OfferCard: React.FC<OfferCardProps> = ({
       <View style={styles.rate}>
         <Text style={styles.rateLabel}>Taux:</Text>
         <Text style={styles.rateValue}>
-          1 {offer.currency_sell} = {offer.rate.toFixed(2)} {offer.currency_buy}
+          1 {offer.currency_sell} = {offer.rate != null ? Number(offer.rate).toFixed(2) : '—'} {offer.currency_buy}
         </Text>
       </View>
 

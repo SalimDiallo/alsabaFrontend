@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity, TextInput } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types/navigation.types';
 import { Screen } from '@/components/layout/Screen';
@@ -9,11 +9,15 @@ import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
 import { formatCurrency } from '@/utils/formatters';
-import { useMockDb } from '@/store/useMockDb';
+import { walletService, WalletData } from '@/services/api/walletService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FundWallet'>;
 
-type PaymentMethodId = 'CARD' | 'MOBILE_MONEY' | 'BANK_TRANSFER';
+type PaymentMethodId = 'CARD' | 'MOBILE_MONEY';
+
+// Mapping frontend → backend
+const toBackendMethod = (m: PaymentMethodId): 'card' | 'orange_money' =>
+    m === 'CARD' ? 'card' : 'orange_money';
 
 interface PaymentMethod {
   id: PaymentMethodId;
@@ -25,49 +29,45 @@ interface PaymentMethod {
 }
 
 const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
-  const wallet = useMockDb((s) => s.wallet);
-  const fundWallet = useMockDb((s) => s.fundWallet);
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [loadingWallet, setLoadingWallet] = useState(true);
 
   const [amount, setAmount] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>('CARD');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    walletService.getWallet().then(setWallet).finally(() => setLoadingWallet(false));
+  }, []);
 
   const paymentMethods: PaymentMethod[] = useMemo(() => ([
-    { 
-      id: 'CARD', 
-      label: 'Carte Bancaire', 
+    {
+      id: 'CARD',
+      label: 'Carte Bancaire',
       description: 'Visa, Mastercard',
       icon: 'card-outline',
       fee: '1.5%',
       delay: 'Instantané',
     },
-    { 
-      id: 'MOBILE_MONEY', 
-      label: 'Mobile Money', 
-      description: 'Orange Money, MTN, Wave',
+    {
+      id: 'MOBILE_MONEY',
+      label: 'Orange Money',
+      description: 'Mobile Money (Orange)',
       icon: 'phone-portrait-outline',
       fee: '1%',
       delay: 'Instantané',
-    },
-    { 
-      id: 'BANK_TRANSFER', 
-      label: 'Virement Bancaire', 
-      description: 'Transfert depuis votre banque',
-      icon: 'business-outline',
-      fee: 'Gratuit',
-      delay: '1-2 jours',
     },
   ]), []);
 
   const parsedAmount = useMemo(() => Number(amount.replace(/[^\d.,]/g, '').replace(',', '.')), [amount]);
   const selectedMethodInfo = useMemo(() => paymentMethods.find((m) => m.id === selectedMethod), [selectedMethod, paymentMethods]);
 
-  // Calcul des frais
+  // Calcul des frais (correspondant au backend)
   const calculatedFee = useMemo(() => {
     if (!parsedAmount || parsedAmount <= 0) return 0;
     switch (selectedMethod) {
       case 'CARD': return parsedAmount * 0.015;
       case 'MOBILE_MONEY': return parsedAmount * 0.01;
-      case 'BANK_TRANSFER': return 0;
       default: return 0;
     }
   }, [parsedAmount, selectedMethod]);
@@ -75,6 +75,8 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
   const totalAmount = parsedAmount + calculatedFee;
 
   const quickAmounts = [5000, 10000, 25000, 50000];
+
+  const currency = wallet?.currency ?? 'MAD';
 
   const handleFund = () => {
     if (!parsedAmount || parsedAmount <= 0) {
@@ -84,16 +86,48 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
 
     Alert.alert(
       'Confirmer le rechargement',
-      `Montant: ${formatCurrency(parsedAmount, wallet.currency)}\nFrais: ${formatCurrency(calculatedFee, wallet.currency)}\nTotal: ${formatCurrency(totalAmount, wallet.currency)}\n\nVia ${selectedMethodInfo?.label}`,
+      `Montant: ${formatCurrency(parsedAmount, currency)}\nFrais: ${formatCurrency(calculatedFee, currency)}\nTotal: ${formatCurrency(totalAmount, currency)}\n\nVia ${selectedMethodInfo?.label}`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Confirmer',
           onPress: async () => {
-            await new Promise((r) => setTimeout(r, 350));
-            fundWallet(parsedAmount, selectedMethod);
-            Alert.alert('Rechargement réussi', `${formatCurrency(parsedAmount, wallet.currency)} ont été ajoutés à votre wallet.`);
-            navigation.goBack();
+            setSubmitting(true);
+            try {
+              const result = await walletService.deposit({
+                amount: parsedAmount,
+                payment_method: toBackendMethod(selectedMethod),
+              });
+
+              if (result.payment_link) {
+                // Redirige vers Flutterwave si lien de paiement disponible
+                Alert.alert(
+                  'Paiement',
+                  'Vous allez être redirigé vers la page de paiement sécurisée.',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Continuer',
+                      onPress: () => {
+                        Linking.openURL(result.payment_link!);
+                        navigation.goBack();
+                      },
+                    },
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  'Rechargement initié',
+                  `${formatCurrency(result.amount, result.currency)} — Réf: ${result.transaction?.id?.slice(0, 8) ?? '—'}`,
+                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                );
+              }
+            } catch (e: any) {
+              const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'Erreur lors du rechargement';
+              Alert.alert('Erreur', msg);
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ]
@@ -117,17 +151,16 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
       />
 
       <View style={styles.content}>
-        {/* Section Solde - Design sobre */}
+        {/* Section Solde */}
         <View style={styles.balanceSection}>
           <View style={styles.balanceHeader}>
             <Icon name="wallet-outline" size={20} color={COLORS.text.secondary} />
             <Text style={styles.balanceLabel}>Solde disponible</Text>
           </View>
-          <Text style={styles.balanceAmount}>{formatCurrency(wallet.availableBalance, wallet.currency)}</Text>
-          {wallet.pendingBalance > 0 && (
-            <Text style={styles.pendingBalance}>
-              + {formatCurrency(wallet.pendingBalance, wallet.currency)} en cours
-            </Text>
+          {loadingWallet ? (
+            <ActivityIndicator color={COLORS.primary} />
+          ) : (
+            <Text style={styles.balanceAmount}>{formatCurrency(wallet?.balance ?? 0, currency)}</Text>
           )}
         </View>
 
@@ -139,7 +172,7 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Montant à recharger</Text>
           
           <View style={styles.amountInputContainer}>
-            <Text style={styles.currencyLabel}>{wallet.currency}</Text>
+            <Text style={styles.currencyLabel}>{currency}</Text>
             <TextInput
               style={styles.amountInput}
               value={amount}
@@ -239,7 +272,7 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Montant</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(parsedAmount, wallet.currency)}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(parsedAmount, currency)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Frais ({selectedMethodInfo?.fee})</Text>
@@ -247,13 +280,13 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
                 styles.summaryValue,
                 calculatedFee === 0 && styles.summaryValueGreen,
               ]}>
-                {calculatedFee === 0 ? 'Gratuit' : formatCurrency(calculatedFee, wallet.currency)}
+                {calculatedFee === 0 ? 'Gratuit' : formatCurrency(calculatedFee, currency)}
               </Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryRow}>
               <Text style={styles.summaryTotalLabel}>Total</Text>
-              <Text style={styles.summaryTotalValue}>{formatCurrency(totalAmount, wallet.currency)}</Text>
+              <Text style={styles.summaryTotalValue}>{formatCurrency(totalAmount, currency)}</Text>
             </View>
           </View>
         )}
@@ -261,11 +294,11 @@ const FundWalletScreen: React.FC<Props> = ({ navigation }) => {
         {/* Bouton confirmer */}
         <View style={styles.footer}>
           <Button
-            title={parsedAmount > 0 ? `Recharger ${formatCurrency(parsedAmount, wallet.currency)}` : 'Entrez un montant'}
+            title={submitting ? 'Traitement…' : parsedAmount > 0 ? `Recharger ${formatCurrency(parsedAmount, currency)}` : 'Entrez un montant'}
             onPress={handleFund}
             fullWidth
             size="large"
-            disabled={!parsedAmount || parsedAmount <= 0}
+            disabled={!parsedAmount || parsedAmount <= 0 || submitting}
           />
           <Text style={styles.securityNote}>
             <Icon name="shield-checkmark-outline" size={12} color={COLORS.text.secondary} /> Paiement sécurisé

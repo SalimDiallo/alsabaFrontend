@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,7 +7,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen } from '@/components/layout/Screen';
 import { Icon } from '@/components/common/Icon';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
-import { useMockDb } from '@/store/useMockDb';
+import { useNotifications } from '@/hooks/useNotifications';
 import { RootStackParamList } from '@/types/navigation.types';
 
 type NotificationType = 'transaction' | 'offer' | 'system' | 'security';
@@ -48,20 +48,22 @@ const NotificationsScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   
-  const notifications = useMockDb((s) => s.notifications);
-  const markNotificationRead = useMockDb((s) => s.markNotificationRead);
-
-  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    refresh,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications();
 
   const handleNotificationPress = (id: string) => {
-    markNotificationRead(id);
+    markAsRead(id);
     // Ici on pourrait naviguer vers la page correspondante selon le type
   };
 
   const handleMarkAllRead = () => {
-    notifications.forEach((n) => {
-      if (!n.read) markNotificationRead(n.id);
-    });
+    markAllAsRead();
   };
 
   return (
@@ -103,6 +105,14 @@ const NotificationsScreen = () => {
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={refresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         {notifications.length === 0 ? (
           <View style={styles.emptyState}>

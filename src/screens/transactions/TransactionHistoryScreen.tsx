@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 
 import { Screen } from '@/components/layout/Screen';
@@ -13,11 +14,10 @@ import { Header } from '@/components/layout/Header';
 import { Icon } from '@/components/common/Icon';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
 import { formatCurrency, formatDate } from '@/utils/formatters';
+import { walletService, TransactionData } from '@/services/api/walletService';
 
-import { useMockDb } from '@/store/useMockDb';
-
-// Types de transaction avec configuration visuelle
-type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'OFFER_CREATED' | 'OFFER_ACCEPTED' | 'TRANSFER';
+// Types de transaction backend avec configuration visuelle
+type TransactionType = 'deposit' | 'withdrawal' | 'refund' | 'p2p_debit' | 'p2p_credit';
 
 interface TransactionConfig {
   icon: string;
@@ -27,17 +27,18 @@ interface TransactionConfig {
   isIncome: boolean;
 }
 
-const getTransactionConfig = (type: TransactionType): TransactionConfig => {
+const getTransactionConfig = (type: string): TransactionConfig => {
   switch (type) {
-    case 'DEPOSIT':
+    case 'deposit':
+    case 'refund':
       return {
         icon: 'arrow-down-circle',
-        label: 'Dépôt',
+        label: type === 'refund' ? 'Remboursement' : 'Dépôt',
         color: COLORS.success,
         bgColor: COLORS.soft.success,
         isIncome: true,
       };
-    case 'WITHDRAWAL':
+    case 'withdrawal':
       return {
         icon: 'arrow-up-circle',
         label: 'Retrait',
@@ -45,26 +46,26 @@ const getTransactionConfig = (type: TransactionType): TransactionConfig => {
         bgColor: COLORS.soft.error,
         isIncome: false,
       };
-    case 'OFFER_CREATED':
+    case 'p2p_debit':
       return {
-        icon: 'add-circle',
-        label: 'Offre créée',
+        icon: 'swap-horizontal',
+        label: 'Envoi P2P',
         color: COLORS.secondary,
         bgColor: COLORS.soft.secondary,
         isIncome: false,
       };
-    case 'OFFER_ACCEPTED':
+    case 'p2p_credit':
       return {
-        icon: 'checkmark-circle',
-        label: 'Offre acceptée',
+        icon: 'swap-horizontal',
+        label: 'Réception P2P',
         color: COLORS.success,
         bgColor: COLORS.soft.success,
         isIncome: true,
       };
     default:
       return {
-        icon: 'swap-horizontal',
-        label: 'Transfert',
+        icon: 'ellipsis-horizontal-circle',
+        label: 'Transaction',
         color: COLORS.primary,
         bgColor: COLORS.soft.primary,
         isIncome: false,
@@ -72,13 +73,13 @@ const getTransactionConfig = (type: TransactionType): TransactionConfig => {
   }
 };
 
-// Configuration des filtres
+// Configuration des filtres (clés = transaction_type backend)
 const FILTER_OPTIONS = [
   { key: 'all', label: 'Tout', icon: 'list-outline' },
-  { key: 'DEPOSIT', label: 'Dépôts', icon: 'arrow-down-circle-outline' },
-  { key: 'WITHDRAWAL', label: 'Retraits', icon: 'arrow-up-circle-outline' },
-  { key: 'OFFER_CREATED', label: 'Offres créées', icon: 'add-circle-outline' },
-  { key: 'OFFER_ACCEPTED', label: 'Offres acceptées', icon: 'checkmark-circle-outline' },
+  { key: 'deposit', label: 'Dépôts', icon: 'arrow-down-circle-outline' },
+  { key: 'withdrawal', label: 'Retraits', icon: 'arrow-up-circle-outline' },
+  { key: 'p2p_debit', label: 'Envois', icon: 'swap-horizontal-outline' },
+  { key: 'p2p_credit', label: 'Réceptions', icon: 'swap-horizontal-outline' },
 ] as const;
 
 // Groupement des transactions par période
@@ -88,7 +89,7 @@ const getDateGroup = (date: string | Date): string => {
   const diffTime = now.getTime() - txDate.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Aujourd\'hui';
+  if (diffDays === 0) return "Aujourd'hui";
   if (diffDays === 1) return 'Hier';
   if (diffDays < 7) return 'Cette semaine';
   if (diffDays < 30) return 'Ce mois';
@@ -102,7 +103,7 @@ interface TransactionItemProps {
 }
 
 const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onPress }) => {
-  const config = getTransactionConfig(transaction.type as TransactionType);
+  const config = getTransactionConfig(transaction.transaction_type);
 
   return (
     <TouchableOpacity
@@ -116,10 +117,10 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onPress 
 
       <View style={styles.transactionInfo}>
         <Text style={styles.transactionDesc} numberOfLines={1}>
-          {transaction.description}
+          {transaction.description || transaction.transaction_type_display || config.label}
         </Text>
         <Text style={styles.transactionMeta}>
-          {formatDate(transaction.createdAt)}
+          {formatDate(transaction.created_at)}
         </Text>
       </View>
 
@@ -140,82 +141,109 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onPress 
 
 // Composant principal
 const TransactionHistoryScreen = () => {
-  const transactions = useMockDb((s) => s.transactions);
+  const [transactions, setTransactions] = useState<TransactionData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const PAGE_SIZE = 20;
 
-  const [limit, setLimit] = useState(20);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+
+  // Charger les transactions depuis l'API
+  const fetchTransactions = useCallback(async (newOffset = 0, reset = false) => {
+    try {
+      const params: { limit: number; offset: number; transaction_type?: string } = {
+        limit: PAGE_SIZE,
+        offset: newOffset,
+      };
+      if (activeFilter !== 'all') {
+        params.transaction_type = activeFilter;
+      }
+      const res = await walletService.listTransactions(params);
+      if (reset || newOffset === 0) {
+        setTransactions(res.transactions);
+      } else {
+        setTransactions((prev) => [...prev, ...res.transactions]);
+      }
+      setTotalCount(res.count ?? res.transactions.length);
+      setOffset(newOffset + res.transactions.length);
+    } catch (e: any) {
+      console.error('[TransactionHistoryScreen] Erreur:', e);
+    }
+  }, [activeFilter]);
+
+  // Chargement initial
+  useEffect(() => {
+    setLoading(true);
+    setOffset(0);
+    fetchTransactions(0, true).finally(() => setLoading(false));
+  }, [fetchTransactions]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setOffset(0);
+    await fetchTransactions(0, true);
+    setRefreshing(false);
+  }, [fetchTransactions]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || offset >= totalCount) return;
+    setLoadingMore(true);
+    await fetchTransactions(offset, false);
+    setLoadingMore(false);
+  }, [loadingMore, offset, totalCount, fetchTransactions]);
 
   // Calcul des statistiques
   const stats = useMemo(() => {
     const totalIn = transactions
-      .filter((t: any) => ['DEPOSIT', 'OFFER_ACCEPTED'].includes(t.type))
-      .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+      .filter((t) => ['deposit', 'refund', 'p2p_credit'].includes(t.transaction_type))
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const totalOut = transactions
-      .filter((t: any) => ['WITHDRAWAL', 'OFFER_CREATED'].includes(t.type))
-      .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+      .filter((t) => ['withdrawal', 'p2p_debit'].includes(t.transaction_type))
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // Use the currency from the first transaction, or default to 'GNF'
-    const currency = transactions[0]?.currency || 'GNF';
+    const currency = transactions[0]?.currency || 'MAD';
 
-    return {
-      totalIn,
-      totalOut,
-      count: transactions.length,
-      currency,
-    };
+    return { totalIn, totalOut, count: transactions.length, currency };
   }, [transactions]);
 
-  // Filtrage et recherche
+  // Filtrage local par recherche (le filtre par type est envoyé à l'API)
   const filteredTransactions = useMemo(() => {
-    let result = [...transactions];
-
-    // Filtre par type
-    if (activeFilter !== 'all') {
-      result = result.filter((t: any) => t.type === activeFilter);
-    }
-
-    // Recherche
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter((t: any) =>
-        t.description?.toLowerCase().includes(query)
-      );
-    }
-
-    return result.slice(0, limit);
-  }, [transactions, activeFilter, searchQuery, limit]);
+    if (!searchQuery.trim()) return transactions;
+    const query = searchQuery.toLowerCase();
+    return transactions.filter((t) =>
+      (t.description || t.transaction_type_display || '').toLowerCase().includes(query)
+    );
+  }, [transactions, searchQuery]);
 
   // Groupement par date
   const groupedTransactions = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-
-    filteredTransactions.forEach((t: any) => {
-      const group = getDateGroup(t.createdAt);
+    const groups: Record<string, TransactionData[]> = {};
+    filteredTransactions.forEach((t) => {
+      const group = getDateGroup(t.created_at);
       if (!groups[group]) groups[group] = [];
       groups[group].push(t);
     });
-
     return groups;
   }, [filteredTransactions]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    // Simuler un refresh
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setRefreshing(false);
-  }, []);
+  const hasMore = offset < totalCount;
 
-  const hasMore = useMemo(() => {
-    let total = transactions.length;
-    if (activeFilter !== 'all') {
-      total = transactions.filter((t: any) => t.type === activeFilter).length;
-    }
-    return limit < total;
-  }, [transactions, activeFilter, limit]);
+  if (loading) {
+    return (
+      <Screen padding={false}>
+        <Header title="Historique" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen
@@ -308,10 +336,7 @@ const TransactionHistoryScreen = () => {
                   styles.filterChip,
                   isActive && styles.filterChipActive,
                 ]}
-                onPress={() => {
-                  setActiveFilter(filter.key);
-                  setLimit(20);
-                }}
+                onPress={() => setActiveFilter(filter.key)}
                 activeOpacity={0.7}
               >
                 <Icon
@@ -375,11 +400,18 @@ const TransactionHistoryScreen = () => {
         {hasMore && (
           <TouchableOpacity
             style={styles.loadMore}
-            onPress={() => setLimit((x) => x + 20)}
+            onPress={loadMore}
             activeOpacity={0.7}
+            disabled={loadingMore}
           >
-            <Icon name="chevron-down" size={18} color={COLORS.primary} />
-            <Text style={styles.loadMoreText}>Afficher plus</Text>
+            {loadingMore ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <>
+                <Icon name="chevron-down" size={18} color={COLORS.primary} />
+                <Text style={styles.loadMoreText}>Afficher plus</Text>
+              </>
+            )}
           </TouchableOpacity>
         )}
 

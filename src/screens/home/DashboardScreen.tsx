@@ -12,12 +12,17 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types/navigation.types';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useExchangeRates } from '@/hooks/useExchangeRates';
 
 const DashboardScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { data, recentTransactions, loading, error, refresh } = useDashboardData();
   const logout = useAuthStore((s) => s.logout);
   const currentUser = useAuthStore((s) => s.user);
+  
+  // Notifications
+  const { unreadCount, refresh: refreshNotifications } = useNotifications();
 
   // Vérifier si l'utilisateur est chargé, sinon déconnecter
   useEffect(() => {
@@ -34,15 +39,13 @@ const DashboardScreen = () => {
     return (first + last).toUpperCase() || '?';
   }, [data?.user]);
 
-  // Liste des taux de change pour le ticker
-  const exchangeRates = useMemo(() => [
-    { from: { flag: '🇪🇺', code: 'EUR' }, to: { flag: '🇬🇳', code: 'GNF', amount: 10250 }, trend: '+0.5%', trendUp: true },
-    { from: { flag: '🇺🇸', code: 'USD' }, to: { flag: '🇬🇳', code: 'GNF', amount: 8650 }, trend: '+0.3%', trendUp: true },
-    { from: { flag: '🇬🇧', code: 'GBP' }, to: { flag: '🇬🇳', code: 'GNF', amount: 10850 }, trend: '-0.2%', trendUp: false },
-    { from: { flag: '🇪🇺', code: 'EUR' }, to: { flag: '🇨🇮', code: 'XOF', amount: 656 }, trend: '+0.0%', trendUp: true },
-    { from: { flag: '🇺🇸', code: 'USD' }, to: { flag: '🇨🇮', code: 'XOF', amount: 605 }, trend: '-0.1%', trendUp: false },
-    { from: { flag: '🇨🇭', code: 'CHF' }, to: { flag: '🇬🇳', code: 'GNF', amount: 9750 }, trend: '+0.8%', trendUp: true },
-  ], []);
+  // Taux de change dynamiques depuis le backend (basés sur la devise du pays de l'utilisateur)
+  const { 
+    rates: exchangeRates, 
+    loading: ratesLoading, 
+    refresh: refreshRates,
+    baseCurrency 
+  } = useExchangeRates(currentUser?.country_code);
 
   // Animation du ticker
   const [currentRateIndex, setCurrentRateIndex] = useState(0);
@@ -162,15 +165,31 @@ const DashboardScreen = () => {
           <View style={styles.headerActions}>
             <TouchableOpacity 
               style={styles.iconButton} 
-              onPress={refresh}
+              onPress={() => {
+                refresh();
+                refreshNotifications();
+                refreshRates();
+              }}
               activeOpacity={0.7}
             >
               <Icon name="refresh-outline" size={20} color={COLORS.text.secondary} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
+            <TouchableOpacity 
+              style={styles.iconButton} 
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Notifications')}
+            >
               <Icon name="notifications-outline" size={20} color={COLORS.text.secondary} />
-              <View style={styles.notificationBadge} />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  {unreadCount <= 9 ? (
+                    <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                  ) : (
+                    <Text style={styles.notificationBadgeText}>9+</Text>
+                  )}
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -179,7 +198,7 @@ const DashboardScreen = () => {
         <View style={styles.walletSection}>
           <WalletBalance
             balance={wallet.balance}
-            currency={wallet.currency}
+            currency={baseCurrency}
             availableBalance={wallet.availableBalance}
             pendingBalance={wallet.pendingBalance}
           />
@@ -468,14 +487,23 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: COLORS.error,
     borderWidth: 1.5,
     borderColor: COLORS.neutral[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  notificationBadgeText: {
+    fontSize: 9,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.text.white,
+    textAlign: 'center',
   },
 
   // Sections

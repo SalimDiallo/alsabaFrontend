@@ -81,11 +81,14 @@ export interface ValidateOfferPayload {
 export function normalizeOffer(o: Offer): Offer {
     return {
         ...o,
+        rate: o.rate != null ? Number(o.rate) : 0,
+        amount_sell: o.amount_sell != null ? Number(o.amount_sell) : 0,
+        amount_buy: o.amount_buy != null ? Number(o.amount_buy) : 0,
         userName: [o.user?.first_name, o.user?.last_name].filter(Boolean).join(' ') || 'Inconnu',
-        sendAmount: o.amount_sell,
+        sendAmount: o.amount_sell != null ? Number(o.amount_sell) : 0,
         sendCurrency: o.currency_sell,
-        receiveAmount: o.amount_buy,
+        receiveAmount: o.amount_buy != null ? Number(o.amount_buy) : 0,
         receiveCurrency: o.currency_buy,
-        exchangeRate: o.rate,
+        exchangeRate: o.rate != null ? Number(o.rate) : 0,
     };
 }

@@ -43,6 +43,7 @@ export interface User {
     updated_at?: string;
 }
 
+
 export interface AuthState {
     user: User | null;
     token: string | null;

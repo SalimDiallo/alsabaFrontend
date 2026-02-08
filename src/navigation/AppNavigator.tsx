@@ -19,6 +19,7 @@ import CreateOfferScreen from '@/screens/offers/CreateOfferScreen';
 import PersonalInfoScreen from '@/screens/profile/PersonalInfoScreen';
 import PaymentMethodsScreen from '@/screens/profile/PaymentMethodsScreen';
 import GenericSettingsScreen from '@/screens/profile/GenericSettingsScreen';
+import NotificationsScreen from '@/screens/notifications/NotificationsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -57,6 +58,7 @@ export const AppNavigator: React.FC = () => {
             {/* Modals */}
             <Stack.Screen name="FundWallet" component={FundWalletScreen} options={{ presentation: 'modal' }} />
             <Stack.Screen name="CreateOffer" component={CreateOfferScreen} options={{ presentation: 'modal' }} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
 
             {/* Profile stack screens */}
             <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />

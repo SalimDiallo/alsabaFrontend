@@ -105,6 +105,9 @@ const ProfileScreen = () => {
   const navigation = useNavigation<any>();
   const { user, logout, refreshProfile, isLoading } = useAuthStore();
 
+  console.log(user);
+  
+
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -261,7 +264,7 @@ const ProfileScreen = () => {
             <MenuItem
               icon="notifications-outline"
               label="Notifications"
-              onPress={() => goStack('Settings', { title: 'Notifications' })}
+              onPress={() => goStack('Notifications')}
             />
             <MenuItem
               icon="language-outline"
