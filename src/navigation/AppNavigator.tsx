@@ -19,21 +19,31 @@ import CreateOfferScreen from '@/screens/offers/CreateOfferScreen';
 import PersonalInfoScreen from '@/screens/profile/PersonalInfoScreen';
 import PaymentMethodsScreen from '@/screens/profile/PaymentMethodsScreen';
 import GenericSettingsScreen from '@/screens/profile/GenericSettingsScreen';
+import NotificationsScreen from '@/screens/notifications/NotificationsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const DEV_MODE = false;
-
 export const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
+  const { user, isAuthenticated, isBootstrapping, initializeAuth, logout } = useAuthStore();
 
+  // Initialisation de l'authentification au démarrage
   useEffect(() => {
-    if (!DEV_MODE) initializeAuth();
+    initializeAuth();
   }, [initializeAuth]);
 
-  if (!DEV_MODE && isLoading) return <Loader fullScreen message="Chargement..." />;
+  // Si pas d'utilisateur après le bootstrap, déconnecter
+  useEffect(() => {
+    if (!isBootstrapping && isAuthenticated && !user) {
+      // L'utilisateur est marqué comme authentifié mais pas de données user
+      // Cela indique un état incohérent, il faut déconnecter
+      logout();
+    }
+  }, [isBootstrapping, isAuthenticated, user, logout]);
 
-  const showMainApp = DEV_MODE || isAuthenticated;
+  // Afficher le loader pendant le bootstrapping
+  if (isBootstrapping) return <Loader fullScreen message="Chargement..." />;
+
+  const showMainApp = isAuthenticated;
 
   return (
     <NavigationContainer>
@@ -48,6 +58,7 @@ export const AppNavigator: React.FC = () => {
             {/* Modals */}
             <Stack.Screen name="FundWallet" component={FundWalletScreen} options={{ presentation: 'modal' }} />
             <Stack.Screen name="CreateOffer" component={CreateOfferScreen} options={{ presentation: 'modal' }} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
 
             {/* Profile stack screens */}
             <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />

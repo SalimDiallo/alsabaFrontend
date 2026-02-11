@@ -2,11 +2,16 @@ import { CURRENCIES } from '@/constants/currencies';
 import type { Currency } from '@/constants/currencies';
 
 // Formater un montant avec la devise
-export const formatCurrency = (amount: number, currency: Currency): string => {
-    const currencyInfo = CURRENCIES[currency];
-    const formatted = amount.toFixed(currencyInfo.decimals);
+export const formatCurrency = (amount: number, currency: Currency | string): string => {
+    // Valeurs par défaut si la devise n'est pas connue
+    const defaultConfig = { decimals: 2, symbol: currency || '?' };
+    const currencyInfo = CURRENCIES[currency as Currency] ?? defaultConfig;
+    
+    // S'assurer que amount est un nombre valide
+    const safeAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
+    const formatted = safeAmount.toFixed(currencyInfo.decimals);
 
-    if (currency === 'MAD') {
+    if (currency === 'MAD' || currency == "GNF") {
         return `${formatted} ${currencyInfo.symbol}`;
     }
 

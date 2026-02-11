@@ -1,9 +1,8 @@
-// IP locale pour accéder au backend Django
-// Utilisez la même IP que celle affichée par Expo (exp://10.16.24.147:8081)
+import { ENV } from '@/config/env';
+
+// Configuration API - utilise les variables d'environnement
 export const API_CONFIG = {
-    BASE_URL: __DEV__
-        ? 'http://10.16.24.147:8000/api/accounts'  // Votre IP locale
-        : 'https://api.alsax.com/api/accounts',
+    BASE_URL: `${ENV.API_BASE_URL}/api/accounts`,
     TIMEOUT: 30000,
     HEADERS: {
         'Content-Type': 'application/json',
@@ -47,6 +46,3 @@ export const NOTIFICATION_CONFIG = {
     PUSH_ENABLED: true,
     SMS_ENABLED: true,
 };
-
-// Mode développement personnalisé pour bypasser l'authentification
-export const DEV_MODE = true;

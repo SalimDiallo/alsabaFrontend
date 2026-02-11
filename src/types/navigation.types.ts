@@ -6,6 +6,7 @@ export type RootStackParamList = {
 
     FundWallet: undefined;
     CreateOffer: undefined;
+    Notifications: undefined;
 
     PersonalInfo: undefined;
     PaymentMethods: undefined;
@@ -37,12 +38,12 @@ export type MainTabParamList = {
 
 export type KycStackParamList = {
     KycDocument: undefined;
-    KycUpload: { documentType: 'id_card' | 'passport' | 'driver_license' };
+    KycUpload: { documentType: 'id_card' | 'passport' | 'drivers_license' };
     KycConfirm: {
-        documentType: 'id_card' | 'passport' | 'driver_license';
-        frontAdded: boolean;
-        backAdded: boolean;
-        selfieAdded: boolean;
+        documentType: 'id_card' | 'passport' | 'drivers_license';
+        frontUri: string;
+        backUri?: string;
+        selfieUri: string;
     };
 };
 

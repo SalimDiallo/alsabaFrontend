@@ -4,126 +4,370 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { KycStackParamList } from '@/types/navigation.types';
 
 import { Screen } from '@/components/layout/Screen';
-import { Header } from '@/components/layout/Header';
-import { Card } from '@/components/common/Card';
 import { Icon } from '@/components/common/Icon';
 import { Button } from '@/components/common/Button';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/colors';
 
 type Props = NativeStackScreenProps<KycStackParamList, 'KycDocument'>;
 
-type DocType = 'id_card' | 'passport' | 'driver_license';
+type DocType = 'id_card' | 'passport' | 'drivers_license';
+
+// Composant Step Indicator réutilisable
+const StepIndicator = ({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) => (
+  <View style={stepStyles.container}>
+    <View style={stepStyles.stepsRow}>
+      {Array.from({ length: totalSteps }).map((_, index) => {
+        const stepNumber = index + 1;
+        const isCompleted = stepNumber < currentStep;
+        const isCurrent = stepNumber === currentStep;
+        
+        return (
+          <React.Fragment key={index}>
+            <View style={[
+              stepStyles.stepCircle,
+              isCompleted && stepStyles.stepCompleted,
+              isCurrent && stepStyles.stepCurrent,
+            ]}>
+              {isCompleted ? (
+                <Icon name="checkmark" size={14} color={COLORS.text.white} />
+              ) : (
+                <Text style={[
+                  stepStyles.stepNumber,
+                  isCurrent && stepStyles.stepNumberCurrent,
+                ]}>
+                  {stepNumber}
+                </Text>
+              )}
+            </View>
+            {index < totalSteps - 1 && (
+              <View style={[
+                stepStyles.stepLine,
+                isCompleted && stepStyles.stepLineCompleted,
+              ]} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </View>
+    <View style={stepStyles.labelsRow}>
+      <Text style={stepStyles.labelActive}>Document</Text>
+      <Text style={stepStyles.label}>Photos</Text>
+      <Text style={stepStyles.label}>Confirmation</Text>
+    </View>
+  </View>
+);
+
+const stepStyles = StyleSheet.create({
+  container: {
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.lg,
+  },
+  stepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.neutral[200],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepCompleted: {
+    backgroundColor: COLORS.success,
+  },
+  stepCurrent: {
+    backgroundColor: COLORS.primary,
+  },
+  stepNumber: {
+    fontSize: TYPOGRAPHY.sizes.sm,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    color: COLORS.text.secondary,
+  },
+  stepNumberCurrent: {
+    color: COLORS.text.white,
+  },
+  stepLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: COLORS.neutral[200],
+    marginHorizontal: SPACING.xs,
+  },
+  stepLineCompleted: {
+    backgroundColor: COLORS.success,
+  },
+  labelsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
+  },
+  label: {
+    fontSize: TYPOGRAPHY.sizes.xs,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    flex: 1,
+  },
+  labelActive: {
+    fontSize: TYPOGRAPHY.sizes.xs,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    textAlign: 'center',
+    flex: 1,
+  },
+});
 
 const KycDocumentScreen: React.FC<Props> = ({ navigation }) => {
   const [docType, setDocType] = useState<DocType>('id_card');
 
-  const items: Array<{ id: DocType; label: string; desc: string; icon: any }> = [
-    { id: 'id_card', label: "Carte d'identité", desc: 'Recto + verso', icon: 'card-outline' },
-    { id: 'passport', label: 'Passeport', desc: 'Page principale', icon: 'document-text-outline' },
-    { id: 'driver_license', label: 'Permis', desc: 'Recto + verso', icon: 'car-outline' },
+  const documents: Array<{ id: DocType; label: string; desc: string; icon: any }> = [
+    { id: 'id_card', label: "Carte d'identité nationale", desc: 'Recto et verso requis', icon: 'card-outline' },
+    { id: 'passport', label: 'Passeport', desc: 'Page avec photo uniquement', icon: 'document-text-outline' },
+    { id: 'drivers_license', label: 'Permis de conduire', desc: 'Recto et verso requis', icon: 'car-outline' },
   ];
 
   return (
     <Screen padding={false} scrollable>
-      <Header
-        title="Vérification d'identité"
-        leftAction={{
-          icon: <Icon name="arrow-back" size={24} color={COLORS.text.primary} />,
-          onPress: () => navigation.goBack(),
-        }}
-      />
+      {/* Header minimaliste */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Icon name="close" size={24} color={COLORS.text.primary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Vérification d'identité</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
+      {/* Indicateur d'étapes */}
+      <StepIndicator currentStep={1} totalSteps={3} />
+
+      {/* Contenu principal */}
       <View style={styles.content}>
-        <Card style={styles.card}>
-          <Text style={styles.title}>Prépare ton document</Text>
-          <Text style={styles.subtitle}>
-            Assure-toi d’être dans un endroit lumineux. Le processus prend ~2 minutes (mock).
+        {/* Icône principale */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroIcon}>
+            <Icon name="shield-checkmark-outline" size={40} color={COLORS.primary} />
+          </View>
+          <Text style={styles.heroTitle}>Choisissez votre document</Text>
+          <Text style={styles.heroSubtitle}>
+            Sélectionnez le type de document officiel que vous souhaitez utiliser pour vérifier votre identité.
           </Text>
+        </View>
 
-          <Text style={styles.section}>Choisir un document</Text>
-
-          {items.map((it) => {
-            const active = docType === it.id;
+        {/* Liste des documents */}
+        <View style={styles.documentList}>
+          {documents.map((doc) => {
+            const isSelected = docType === doc.id;
             return (
               <TouchableOpacity
-                key={it.id}
-                style={[styles.docRow, active && styles.docRowActive]}
-                onPress={() => setDocType(it.id)}
-                activeOpacity={0.8}
+                key={doc.id}
+                style={[styles.documentCard, isSelected && styles.documentCardSelected]}
+                onPress={() => setDocType(doc.id)}
+                activeOpacity={0.7}
               >
-                <View style={[styles.docIcon, active && { borderColor: COLORS.primary }]}>
-                  <Icon name={it.icon} size={22} color={active ? COLORS.primary : COLORS.text.secondary} />
+                <View style={[styles.documentIconContainer, isSelected && styles.documentIconSelected]}>
+                  <Icon 
+                    name={doc.icon} 
+                    size={24} 
+                    color={isSelected ? COLORS.primary : COLORS.text.secondary} 
+                  />
                 </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.docLabel}>{it.label}</Text>
-                  <Text style={styles.docDesc}>{it.desc}</Text>
+                
+                <View style={styles.documentInfo}>
+                  <Text style={[styles.documentLabel, isSelected && styles.documentLabelSelected]}>
+                    {doc.label}
+                  </Text>
+                  <Text style={styles.documentDesc}>{doc.desc}</Text>
                 </View>
-
-                {active ? <Icon name="checkmark-circle" size={22} color={COLORS.primary} /> : null}
+                
+                <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                  {isSelected && <View style={styles.radioInner} />}
+                </View>
               </TouchableOpacity>
             );
           })}
+        </View>
 
-          <Button
-            title="Commencer"
-            onPress={() => navigation.navigate('KycUpload', { documentType: docType })}
-            fullWidth
-            style={{ marginTop: SPACING.lg }}
-          />
-        </Card>
-
-        <Card style={styles.note}>
-          <Text style={styles.noteTitle}>Info</Text>
-          <Text style={styles.noteText}>
-            En production, cet écran lancera une session KYC (provider) et ouvrira le parcours “hosted”.
-            Ici on simule le même flow côté front.
+        {/* Info box */}
+        <View style={styles.infoBox}>
+          <Icon name="information-circle-outline" size={20} color={COLORS.info} />
+          <Text style={styles.infoText}>
+            Assurez-vous que votre document est valide et lisible. Le processus prend environ 2 minutes.
           </Text>
-        </Card>
+        </View>
+      </View>
+
+      {/* Footer fixe */}
+      <View style={styles.footer}>
+        <Button
+          title="Continuer"
+          onPress={() => navigation.navigate('KycUpload', { documentType: docType })}
+          fullWidth
+          size="large"
+        />
       </View>
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  content: { padding: SPACING.md },
-  card: { padding: SPACING.md, marginBottom: SPACING.md },
-  title: { fontSize: TYPOGRAPHY.sizes.lg, fontWeight: TYPOGRAPHY.weights.bold, color: COLORS.text.primary },
-  subtitle: { marginTop: 6, color: COLORS.text.secondary, lineHeight: 20 },
-
-  section: { marginTop: SPACING.lg, marginBottom: SPACING.sm, color: COLORS.text.secondary },
-
-  docRow: {
+  // Header
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.sm,
-    backgroundColor: COLORS.card,
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
   },
-  docRowActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: `${COLORS.primary}08`,
-  },
-  docIcon: {
+  backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
+    backgroundColor: COLORS.neutral[100],
     justifyContent: 'center',
-    marginRight: SPACING.md,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: TYPOGRAPHY.sizes.md,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    color: COLORS.text.primary,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+
+  // Content
+  content: {
+    flex: 1,
+    padding: SPACING.lg,
+  },
+
+  // Hero Section
+  heroSection: {
+    alignItems: 'center',
+    marginBottom: SPACING.xl,
+  },
+  heroIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.soft.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  heroTitle: {
+    fontSize: TYPOGRAPHY.sizes.xl,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.text.primary,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  heroSubtitle: {
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: SPACING.md,
+  },
+
+  // Document List
+  documentList: {
+    gap: SPACING.sm,
+  },
+  documentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  documentCardSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: `${COLORS.primary}05`,
+  },
+  documentIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.neutral[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  documentIconSelected: {
+    backgroundColor: COLORS.soft.primary,
+  },
+  documentInfo: {
+    flex: 1,
+    marginLeft: SPACING.md,
+  },
+  documentLabel: {
+    fontSize: TYPOGRAPHY.sizes.md,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    color: COLORS.text.primary,
+    marginBottom: 2,
+  },
+  documentLabelSelected: {
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  documentDesc: {
+    fontSize: TYPOGRAPHY.sizes.xs,
+    color: COLORS.text.secondary,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: COLORS.neutral[300],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: COLORS.primary,
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+  },
+
+  // Info Box
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    backgroundColor: COLORS.soft.secondary,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: SPACING.lg,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: COLORS.text.secondary,
+    lineHeight: 20,
+  },
+
+  // Footer
+  footer: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
     backgroundColor: COLORS.surface,
   },
-  docLabel: { color: COLORS.text.primary, fontWeight: TYPOGRAPHY.weights.semibold },
-  docDesc: { color: COLORS.text.secondary, marginTop: 2, fontSize: TYPOGRAPHY.sizes.xs },
-
-  note: { padding: SPACING.md },
-  noteTitle: { fontWeight: TYPOGRAPHY.weights.semibold, color: COLORS.text.primary, marginBottom: 6 },
-  noteText: { color: COLORS.text.secondary, lineHeight: 20 },
 });
 
 export default KycDocumentScreen;

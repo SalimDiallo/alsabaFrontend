@@ -12,6 +12,16 @@ interface OfferCardProps {
   showAcceptButton?: boolean;
 }
 
+const statusDisplay: Record<string, string> = {
+  OPEN: 'Active',
+  ACCEPTED: 'Acceptée',
+  LOCKED: 'Verrouillée',
+  COMPLETED: 'Terminée',
+  CANCELLED: 'Annulée',
+  EXPIRED: 'Expirée',
+  DISPUTE: 'Litige',
+};
+
 export const OfferCard: React.FC<OfferCardProps> = ({
   offer,
   onAccept,
@@ -20,9 +30,9 @@ export const OfferCard: React.FC<OfferCardProps> = ({
   return (
     <Card style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.userName}>{offer.userName}</Text>
+        <Text style={styles.userName}>{offer.userName ?? 'Offre'}</Text>
         <View style={styles.statusBadge}>
-          <Text style={styles.statusText}>{offer.status}</Text>
+          <Text style={styles.statusText}>{statusDisplay[offer.status] ?? offer.status}</Text>
         </View>
       </View>
 
@@ -30,7 +40,7 @@ export const OfferCard: React.FC<OfferCardProps> = ({
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Envoie</Text>
           <Text style={styles.amount}>
-            {formatCurrency(offer.sendAmount, offer.sendCurrency)}
+            {formatCurrency(offer.amount_sell, offer.currency_sell)}
           </Text>
         </View>
 
@@ -41,7 +51,7 @@ export const OfferCard: React.FC<OfferCardProps> = ({
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Reçoit</Text>
           <Text style={styles.amount}>
-            {formatCurrency(offer.receiveAmount, offer.receiveCurrency)}
+            {formatCurrency(offer.amount_buy, offer.currency_buy)}
           </Text>
         </View>
       </View>
@@ -49,13 +59,13 @@ export const OfferCard: React.FC<OfferCardProps> = ({
       <View style={styles.rate}>
         <Text style={styles.rateLabel}>Taux:</Text>
         <Text style={styles.rateValue}>
-          1 {offer.sendCurrency} = {offer.exchangeRate.toFixed(2)} {offer.receiveCurrency}
+          1 {offer.currency_sell} = {offer.rate != null ? Number(offer.rate).toFixed(2) : '—'} {offer.currency_buy}
         </Text>
       </View>
 
-      {showAcceptButton && offer.status === 'ACTIVE' && (
+      {showAcceptButton && offer.status === 'OPEN' && (
         <Button
-          title="Accepter l'offre"
+          title="Voir l'offre"
           onPress={() => onAccept(offer.id)}
           variant="primary"
           fullWidth

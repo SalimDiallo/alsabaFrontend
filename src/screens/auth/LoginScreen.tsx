@@ -59,16 +59,33 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       console.log('✅ Login success:', response);
 
       // Navigation avec les données du backend
+      // Construire le numéro complet en format E.164
+      const fullPhoneNumber = `${selectedCountry.code}${phoneNumber}`;
+
       navigation.navigate('OTPVerification', {
         phoneNumber,
         countryCode: selectedCountry.code,
-        fullPhoneNumber: response.phone_number,
+        fullPhoneNumber,
         sessionKey: response.session_key,
         expiresIn: response.expires_in,
       });
     } catch (error: any) {
-      console.log('❌ Login error:', error);
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+      console.error('❌ Login error:', error);
+
+      let errorMessage = 'Une erreur est survenue';
+
+      if (error.response) {
+        // Erreur HTTP du backend
+        const data = error.response.data;
+        errorMessage = data?.error || data?.message || data?.detail || 'Erreur de connexion au serveur';
+      } else if (error.request) {
+        // Pas de réponse du serveur
+        errorMessage = 'Impossible de contacter le serveur. Vérifiez votre connexion internet.';
+      } else {
+        errorMessage = error.message || 'Une erreur inconnue est survenue';
+      }
+
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setIsLoading(false);
     }

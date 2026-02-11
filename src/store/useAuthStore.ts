@@ -8,7 +8,7 @@ import { saveToken, saveUser, getToken, getUser, clearStorage } from '@/services
 const REFRESH_TOKEN_KEY = '@alsax_refresh_token';
 
 interface AuthStore extends AuthState {
-    isBootstrapping: boolean; // ✅ AJOUT
+    isBootstrapping: boolean;
 
     setAuth: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
     logout: () => Promise<void>;
@@ -16,6 +16,7 @@ interface AuthStore extends AuthState {
     initializeAuth: () => Promise<void>;
     setLoading: (isLoading: boolean) => void;
     updateTokens: (accessToken: string, refreshToken?: string) => Promise<void>;
+    setKycStatus: (status: User['kyc_status']) => Promise<void>;
 
     refreshProfile: () => Promise<User | null>;
 }
@@ -45,6 +46,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     },
 
     logout: async () => {
+        const { refreshToken } = get();
+        // Blackliste les tokens côté serveur avant de les effacer localement
+        if (refreshToken) {
+            await authService.logout(refreshToken);
+        }
         await clearStorage();
         await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
         set({
@@ -61,6 +67,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         const currentUser = get().user;
         if (!currentUser) return;
         const updatedUser = { ...currentUser, ...userData };
+        await saveUser(updatedUser);
+        set({ user: updatedUser });
+    },
+
+    setKycStatus: async (kycStatus) => {
+        const currentUser = get().user;
+        if (!currentUser) return;
+        const updatedUser = { ...currentUser, kyc_status: kycStatus };
         await saveUser(updatedUser);
         set({ user: updatedUser });
     },
