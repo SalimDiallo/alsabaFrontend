@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     // Ombre iOS
-    shadowColor: COLORS.shadow,
+    shadowColor: COLORS.shadow.color,
     shadowOffset: {
       width: 0,
       height: 4,
